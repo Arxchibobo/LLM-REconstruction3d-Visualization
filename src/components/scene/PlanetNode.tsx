@@ -238,7 +238,7 @@ export default function PlanetNode({ node }: PlanetNodeProps) {
           {/* 外环 - Cyan */}
           <mesh rotation={[Math.PI / 2, 0, 0]}>
             <torusGeometry args={[planetSize * 1.4, 0.08, 16, 64]} />
-            <meshBasicMaterial
+            <meshStandardMaterial
               color="#00FFFF"
               emissive="#00FFFF"
               emissiveIntensity={1.5}
@@ -250,7 +250,7 @@ export default function PlanetNode({ node }: PlanetNodeProps) {
           {/* 内环 - Magenta */}
           <mesh rotation={[0, Math.PI / 4, 0]}>
             <torusGeometry args={[planetSize * 1.3, 0.06, 16, 64]} />
-            <meshBasicMaterial
+            <meshStandardMaterial
               color="#FF00FF"
               emissive="#FF00FF"
               emissiveIntensity={1.2}
@@ -268,7 +268,7 @@ export default function PlanetNode({ node }: PlanetNodeProps) {
             return (
               <mesh key={i} position={[x, 0, z]}>
                 <boxGeometry args={[0.15, 0.15, 0.15]} />
-                <meshBasicMaterial
+                <meshStandardMaterial
                   color="#FFFF00"
                   emissive="#FFFF00"
                   emissiveIntensity={2}
