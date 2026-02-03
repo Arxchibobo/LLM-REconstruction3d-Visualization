@@ -23,6 +23,8 @@ interface KnowledgeStore {
   cameraTarget: string | null;
   layoutType: 'force' | 'circular' | 'grid' | 'hierarchical' | 'orbital';  // 🆕 添加 orbital
   enabledNodeTypes: Set<string>;  // 🆕 启用的节点类型（用于过滤）
+  cameraZoom: number;  // 🆕 相机缩放级别（1-200）
+  cameraReset: boolean;  // 🆕 触发相机重置
 
   // Actions
   setNodes: (nodes: KnowledgeNode[]) => void;
@@ -37,6 +39,8 @@ interface KnowledgeStore {
   setError: (error: string | null) => void;
   setEnabledNodeTypes: (types: Set<string>) => void;  // 🆕 设置启用的节点类型
   toggleNodeType: (type: string) => void;  // 🆕 切换节点类型
+  setCameraZoom: (zoom: number) => void;  // 🆕 设置相机缩放
+  triggerCameraReset: () => void;  // 🆕 触发相机重置
 
   // 添加节点
   addNode: (node: KnowledgeNode) => void;
@@ -72,6 +76,8 @@ export const useKnowledgeStore = create<KnowledgeStore>((set, get) => ({
   cameraTarget: null,
   layoutType: 'orbital',  // 🆕 默认使用轨道布局
   enabledNodeTypes: new Set(['skill', 'plugin', 'mcp', 'document', 'error']),  // 🆕 默认启用所有类型
+  cameraZoom: 100,  // 🆕 默认缩放 100%
+  cameraReset: false,  // 🆕 默认不触发重置
 
   // Actions
   setNodes: (nodes) => set({ nodes }),
@@ -95,6 +101,8 @@ export const useKnowledgeStore = create<KnowledgeStore>((set, get) => ({
       }
       return { enabledNodeTypes: newTypes };
     }),
+  setCameraZoom: (cameraZoom) => set({ cameraZoom }),
+  triggerCameraReset: () => set({ cameraReset: true }, false),  // 触发后立即重置标志
 
   addNode: (node) =>
     set((state) => ({

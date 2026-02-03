@@ -18,13 +18,26 @@ import CenterRobot from './CenterRobot';
 
 export default function KnowledgeGraph() {
   const groupRef = useRef<Group>(null);
-  const { nodes, connections, searchQuery, searchNodes, layoutType, hoveredNode } = useKnowledgeStore();
+  const {
+    nodes,
+    connections,
+    searchQuery,
+    searchNodes,
+    layoutType,
+    hoveredNode,
+    enabledNodeTypes  // 🆕 获取启用的节点类型
+  } = useKnowledgeStore();
 
-  // 搜索过滤节点
+  // 搜索和类型过滤节点
   const filteredNodes = useMemo(() => {
-    if (!searchQuery.trim()) return nodes;
-    return searchNodes(searchQuery);
-  }, [nodes, searchQuery, searchNodes]);
+    // 先按搜索查询过滤
+    let result = searchQuery.trim() ? searchNodes(searchQuery) : nodes;
+
+    // 再按节点类型过滤
+    result = result.filter(node => enabledNodeTypes.has(node.type));
+
+    return result;
+  }, [nodes, searchQuery, searchNodes, enabledNodeTypes]);
 
   // 使用布局算法计算节点位置
   const layout = useMemo(() => {

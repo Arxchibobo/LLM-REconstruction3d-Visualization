@@ -1,6 +1,5 @@
 'use client';
 
-import { useState } from 'react';
 import { useKnowledgeStore } from '@/stores/useKnowledgeStore';
 import NeonButton from './NeonButton';
 
@@ -9,29 +8,21 @@ import NeonButton from './NeonButton';
  * 特点：缩放控制、重置视图、状态信息、小地图
  */
 export default function BottomToolbar() {
-  const { selectedNode } = useKnowledgeStore();
-  const [zoom, setZoom] = useState(100);
-  const [cameraPosition, setCameraPosition] = useState({ x: 0, y: 5, z: 15 });
+  const { selectedNode, cameraZoom, setCameraZoom, triggerCameraReset } = useKnowledgeStore();
 
   // 重置视图
   const handleResetView = () => {
-    setZoom(100);
-    setCameraPosition({ x: 0, y: 5, z: 15 });
-    // TODO: 集成到 3D 场景控制
-    console.log('重置视图');
+    setCameraZoom(100);
+    triggerCameraReset();
   };
 
   // 缩放控制
   const handleZoomIn = () => {
-    setZoom((prev) => Math.min(200, prev + 10));
-    // TODO: 集成到 3D 场景控制
-    console.log('放大', zoom + 10);
+    setCameraZoom(Math.min(200, cameraZoom + 10));
   };
 
   const handleZoomOut = () => {
-    setZoom((prev) => Math.max(10, prev - 10));
-    // TODO: 集成到 3D 场景控制
-    console.log('缩小', zoom - 10);
+    setCameraZoom(Math.max(10, cameraZoom - 10));
   };
 
   return (
@@ -86,7 +77,7 @@ export default function BottomToolbar() {
             -
           </button>
           <span className="text-xs text-white/70 font-mono w-12 text-center">
-            {zoom}%
+            {cameraZoom}%
           </span>
           <button
             onClick={handleZoomIn}
@@ -115,7 +106,7 @@ export default function BottomToolbar() {
       {/* 中间：状态信息 */}
       <div className="flex items-center gap-6 text-xs text-white/50">
         <span className="font-mono">
-          相机位置: ({cameraPosition.x.toFixed(1)}, {cameraPosition.y.toFixed(1)}, {cameraPosition.z.toFixed(1)})
+          缩放: {cameraZoom}%
         </span>
         <span className="w-px h-4 bg-white/20" />
         <span>

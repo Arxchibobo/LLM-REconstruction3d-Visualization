@@ -7,6 +7,7 @@ import { Suspense } from 'react';
 import KnowledgeGraph from './KnowledgeGraph';
 import SpaceBackground from './SpaceBackground';
 import Camera from './Camera';
+import CameraController from './CameraController';
 import LoadingScreen from '../ui/LoadingScreen';
 import { useKnowledgeStore } from '@/stores/useKnowledgeStore';
 
@@ -57,6 +58,9 @@ export default function Scene() {
 
       {/* 相机控制 */}
       <Camera />
+
+      {/* 相机控制器（UI 交互） */}
+      <CameraController />
 
       {/* 轨道控制器 */}
       <OrbitControls
