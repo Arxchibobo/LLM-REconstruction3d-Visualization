@@ -54,17 +54,24 @@ export default function CenterRobot() {
     }
 
     // ✨ 粒子流动
-    if (particlesRef.current) {
+    if (
+      particlesRef.current &&
+      particlesRef.current.geometry &&
+      particlesRef.current.geometry.attributes &&
+      particlesRef.current.geometry.attributes.position
+    ) {
       const positions = particlesRef.current.geometry.attributes.position.array as Float32Array;
-      for (let i = 0; i < positions.length; i += 3) {
-        // 螺旋运动
-        const angle = time * 0.5 + i * 0.01;
-        const radius = 2 + Math.sin(time + i * 0.1) * 0.5;
-        positions[i] = Math.cos(angle) * radius;
-        positions[i + 1] = Math.sin(angle) * radius;
-        positions[i + 2] = Math.sin(time * 0.3 + i * 0.05) * 2;
+      if (positions && positions.length > 0) {
+        for (let i = 0; i < positions.length; i += 3) {
+          // 螺旋运动
+          const angle = time * 0.5 + i * 0.01;
+          const radius = 2 + Math.sin(time + i * 0.1) * 0.5;
+          positions[i] = Math.cos(angle) * radius;
+          positions[i + 1] = Math.sin(angle) * radius;
+          positions[i + 2] = Math.sin(time * 0.3 + i * 0.05) * 2;
+        }
+        particlesRef.current.geometry.attributes.position.needsUpdate = true;
       }
-      particlesRef.current.geometry.attributes.position.needsUpdate = true;
     }
   });
 

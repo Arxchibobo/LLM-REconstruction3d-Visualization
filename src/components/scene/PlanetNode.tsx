@@ -105,16 +105,24 @@ export default function PlanetNode({ node }: PlanetNodeProps) {
     }
 
     // 粒子环绕
-    if (particlesRef.current && (isHovered || isSelected)) {
+    if (
+      particlesRef.current &&
+      particlesRef.current.geometry &&
+      particlesRef.current.geometry.attributes &&
+      particlesRef.current.geometry.attributes.position &&
+      (isHovered || isSelected)
+    ) {
       const positions = particlesRef.current.geometry.attributes.position.array as Float32Array;
-      for (let i = 0; i < positions.length; i += 3) {
-        const angle = time * 0.3 + i * 0.1;
-        const radius = planetSize + 0.5 + Math.sin(time + i * 0.1) * 0.2;
-        positions[i] = Math.cos(angle) * radius;
-        positions[i + 1] = Math.sin(angle) * radius;
-        positions[i + 2] = Math.sin(time * 0.5 + i * 0.05) * 0.5;
+      if (positions && positions.length > 0) {
+        for (let i = 0; i < positions.length; i += 3) {
+          const angle = time * 0.3 + i * 0.1;
+          const radius = planetSize + 0.5 + Math.sin(time + i * 0.1) * 0.2;
+          positions[i] = Math.cos(angle) * radius;
+          positions[i + 1] = Math.sin(angle) * radius;
+          positions[i + 2] = Math.sin(time * 0.5 + i * 0.05) * 0.5;
+        }
+        particlesRef.current.geometry.attributes.position.needsUpdate = true;
       }
-      particlesRef.current.geometry.attributes.position.needsUpdate = true;
     }
   });
 
