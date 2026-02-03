@@ -190,11 +190,10 @@ export default function CenterRobot() {
       <points ref={particlesRef} geometry={particles}>
         <pointsMaterial
           size={0.08}
-          vertexColors
           transparent
           opacity={0.8}
           blending={AdditiveBlending}
-          sizeAttenuation
+          sizeAttenuation={true}
         />
       </points>
 

@@ -280,7 +280,7 @@ export default function PlanetNode({ node }: PlanetNodeProps) {
             transparent
             opacity={0.7}
             blending={AdditiveBlending}
-            sizeAttenuation
+            sizeAttenuation={true}
           />
         </points>
       )}
