@@ -46,10 +46,15 @@ const config: Config = {
           '0%': { transform: 'rotate(0deg)' },
           '100%': { transform: 'rotate(360deg)' },
         },
+        'slide-in-right': {
+          '0%': { transform: 'translateX(100%)', opacity: '0' },
+          '100%': { transform: 'translateX(0)', opacity: '1' },
+        },
       },
       animation: {
         'pulse-glow': 'pulse-glow 2s ease-in-out infinite',
         'rotate-slow': 'rotate-slow 20s linear infinite',
+        'slide-in-right': 'slide-in-right 0.3s ease-out',
       },
     },
   },

@@ -6,7 +6,7 @@
  */
 
 import { BaseAdapter, AdapterConfig } from './base';
-import { KnowledgeNode, KnowledgeConnection, KnowledgeGraphData, NodeType } from '@/types/knowledge';
+import { KnowledgeNode, Connection, KnowledgeGraph, NodeType } from '@/types/knowledge';
 
 /**
  * Claude Skill 原始数据结构
@@ -59,11 +59,10 @@ export class ClaudeConfigAdapter extends BaseAdapter {
     });
   }
 
-  async fetchData(): Promise<KnowledgeGraphData> {
+  async fetchData(): Promise<KnowledgeGraph> {
     const cacheKey = 'claude-config-data';
-    const cached = this.getCachedData<KnowledgeGraphData>(cacheKey);
+    const cached = this.getCachedData<KnowledgeGraph>(cacheKey);
     if (cached) {
-      console.log('[ClaudeConfigAdapter] Returning cached data');
       return cached;
     }
 
@@ -91,9 +90,91 @@ export class ClaudeConfigAdapter extends BaseAdapter {
   /**
    * 将 Claude 配置转换为知识图谱
    */
-  private transformToGraph(data: ClaudeConfigResponse): KnowledgeGraphData {
+  private transformToGraph(data: ClaudeConfigResponse): KnowledgeGraph {
     const nodes: KnowledgeNode[] = [];
-    const connections: KnowledgeConnection[] = [];
+    const connections: Connection[] = [];
+
+    // 创建中心节点（Claude Robot）
+    const claudeCenter: KnowledgeNode = {
+      id: 'claude-center',
+      type: 'claude' as NodeType,
+      title: 'Claude Code',
+      description: 'Claude Code - AI 智能开发助手',
+      filePath: '',
+      content: '',
+      tags: ['center', 'claude'],
+      links: [],
+      position: [0, 0, 0],
+      tier: 'CoreSkill',
+      // 中心节点没有轨道
+      metadata: {
+        size: 2.0,
+        created: new Date(),
+        modified: new Date(),
+        accessed: new Date(),
+        accessCount: 0,
+        importance: 1.0,
+      },
+      visual: {
+        color: '#00FFFF',
+        size: 2.0,
+        shape: 'dodecahedron',
+        glow: true,
+        icon: '🤖',
+      },
+    };
+    nodes.push(claudeCenter);
+
+    // 创建适配器节点（核心层）
+    const claudeConfigAdapter: KnowledgeNode = {
+      id: 'adapter-claude-config',
+      type: 'adapter' as NodeType,
+      title: 'Claude Config Adapter',
+      description: '读取和解析 Claude 配置文件',
+      filePath: '',
+      content: '',
+      tags: ['adapter', 'core'],
+      links: [],
+      position: [0, 0, 0],
+      tier: 'CoreSkill',
+      orbit: 1,
+      metadata: {
+        size: 1.5,
+        created: new Date(),
+        modified: new Date(),
+        accessed: new Date(),
+        accessCount: 0,
+        importance: 0.9,
+      },
+      visual: {
+        color: '#00FFFF',
+        size: 1.5,
+        shape: 'octahedron',
+        glow: true,
+        icon: '🔌',
+      },
+    };
+    nodes.push(claudeConfigAdapter);
+
+    // 连接：Claude → Adapter
+    connections.push({
+      id: `${claudeCenter.id}->${claudeConfigAdapter.id}`,
+      source: claudeCenter.id,
+      target: claudeConfigAdapter.id,
+      type: 'reference',
+      strength: 1.0,
+      label: '调用',
+      metadata: {
+        created: new Date(),
+        manual: false,
+      },
+      visual: {
+        color: '#00FFFF',
+        width: 2,
+        dashed: false,
+        animated: true,
+      },
+    });
 
     // 创建分类节点
     const categories = new Set<string>();
@@ -102,15 +183,156 @@ export class ClaudeConfigAdapter extends BaseAdapter {
     });
 
     categories.forEach(category => {
+      const categoryId = `category-${category}`;
       nodes.push({
-        id: `category-${category}`,
+        id: categoryId,
         type: 'category' as NodeType,
-        data: {
-          title: category,
-          description: `${category} category`,
-          category
-        }
+        title: category,
+        description: `${category} category`,
+        filePath: '',
+        content: '',
+        tags: ['category'],
+        links: [],
+        position: [0, 0, 0],
+        tier: 'CoreSkill',
+        orbit: 1,
+        metadata: {
+          size: 1,
+          created: new Date(),
+          modified: new Date(),
+          accessed: new Date(),
+          accessCount: 0,
+          importance: 0.8,
+        },
+        visual: {
+          color: '#FFFFFF',
+          size: 1.2,
+          shape: 'octahedron',
+          glow: true,
+          icon: '📁',
+        },
       });
+
+      // 连接：Adapter → Category
+      connections.push({
+        id: `${claudeConfigAdapter.id}->${categoryId}`,
+        source: claudeConfigAdapter.id,
+        target: categoryId,
+        type: 'dependency',
+        strength: 0.7,
+        label: '获取数据',
+        metadata: {
+          created: new Date(),
+          manual: false,
+        },
+        visual: {
+          color: '#FF00FF',
+          width: 1.5,
+          dashed: true,
+          animated: false,
+        },
+      });
+    });
+
+    // 创建 Plugin 和 MCP 的分类节点
+    const pluginCategoryId = 'category-Plugins';
+    nodes.push({
+      id: pluginCategoryId,
+      type: 'category' as NodeType,
+      title: 'Plugins',
+      description: 'Plugin 插件系统',
+      filePath: '',
+      content: '',
+      tags: ['category'],
+      links: [],
+      position: [0, 0, 0],
+      tier: 'CoreSkill',
+      orbit: 1,
+      metadata: {
+        size: 1,
+        created: new Date(),
+        modified: new Date(),
+        accessed: new Date(),
+        accessCount: 0,
+        importance: 0.8,
+      },
+      visual: {
+        color: '#FFFFFF',
+        size: 1.2,
+        shape: 'octahedron',
+        glow: true,
+        icon: '🧩',
+      },
+    });
+
+    // 连接：Adapter → Plugin Category
+    connections.push({
+      id: `${claudeConfigAdapter.id}->${pluginCategoryId}`,
+      source: claudeConfigAdapter.id,
+      target: pluginCategoryId,
+      type: 'dependency',
+      strength: 0.7,
+      label: '获取数据',
+      metadata: {
+        created: new Date(),
+        manual: false,
+      },
+      visual: {
+        color: '#FF00FF',
+        width: 1.5,
+        dashed: true,
+        animated: false,
+      },
+    });
+
+    const mcpCategoryId = 'category-MCP-Servers';
+    nodes.push({
+      id: mcpCategoryId,
+      type: 'category' as NodeType,
+      title: 'MCP Servers',
+      description: 'MCP 服务器系统',
+      filePath: '',
+      content: '',
+      tags: ['category'],
+      links: [],
+      position: [0, 0, 0],
+      tier: 'CoreSkill',
+      orbit: 1,
+      metadata: {
+        size: 1,
+        created: new Date(),
+        modified: new Date(),
+        accessed: new Date(),
+        accessCount: 0,
+        importance: 0.8,
+      },
+      visual: {
+        color: '#FFFFFF',
+        size: 1.2,
+        shape: 'octahedron',
+        glow: true,
+        icon: '🌐',
+      },
+    });
+
+    // 连接：Adapter → MCP Category
+    connections.push({
+      id: `${claudeConfigAdapter.id}->${mcpCategoryId}`,
+      source: claudeConfigAdapter.id,
+      target: mcpCategoryId,
+      type: 'dependency',
+      strength: 0.7,
+      label: '获取数据',
+      metadata: {
+        created: new Date(),
+        manual: false,
+      },
+      visual: {
+        color: '#FF00FF',
+        width: 1.5,
+        dashed: true,
+        animated: false,
+      },
     });
 
     // 创建 Skill 节点
@@ -120,11 +342,12 @@ export class ClaudeConfigAdapter extends BaseAdapter {
 
       // 连接到分类
       if (skill.category) {
-        connections.push({
+        connections.push(this.parseConnection({
           source: node.id,
           target: `category-${skill.category}`,
-          type: 'belongsTo'
-        });
+          type: 'parent-child',
+          strength: 0.7,
+        }));
       }
     });
 
@@ -133,12 +356,13 @@ export class ClaudeConfigAdapter extends BaseAdapter {
       const node = this.parseNode({ ...plugin, nodeType: 'plugin' });
       nodes.push(node);
 
-      // 连接到分类（Plugin 也属于某个分类）
-      connections.push({
+      // 连接到分类
+      connections.push(this.parseConnection({
         source: node.id,
-        target: `category-plugin`,
-        type: 'belongsTo'
-      });
+        target: pluginCategoryId,
+        type: 'parent-child',
+        strength: 0.7,
+      }));
     });
 
     // 创建 MCP Server 节点
@@ -147,14 +371,25 @@ export class ClaudeConfigAdapter extends BaseAdapter {
       nodes.push(node);
 
       // 连接到分类
-      connections.push({
+      connections.push(this.parseConnection({
         source: node.id,
-        target: `category-mcp-server`,
-        type: 'belongsTo'
-      });
+        target: mcpCategoryId,
+        type: 'parent-child',
+        strength: 0.7,
+      }));
     });
 
-    return { nodes, connections };
+
+    return {
+      nodes,
+      connections,
+      metadata: {
+        version: '1.0',
+        lastUpdated: new Date(),
+        totalSize: nodes.length + connections.length,
+        fileCount: nodes.length,
+      },
+    };
   }
 
   parseNode(raw: any): KnowledgeNode {
@@ -163,24 +398,51 @@ export class ClaudeConfigAdapter extends BaseAdapter {
     return {
       id: `${nodeType}-${raw.name}`,
       type: nodeType as NodeType,
-      data: {
-        title: raw.name,
-        description: raw.description || '',
-        category: raw.category || nodeType,
-        metadata: {
-          plugin: raw.plugin,
-          subagentType: raw.subagentType,
-          tools: raw.tools
-        }
-      }
+      title: raw.name,
+      description: raw.description || '',
+      filePath: '',
+      content: '',
+      tags: [raw.category || nodeType],
+      links: [],
+      position: [0, 0, 0],
+      tier: 'Skill',
+      orbit: 2,
+      metadata: {
+        size: 1,
+        created: new Date(),
+        modified: new Date(),
+        accessed: new Date(),
+        accessCount: 0,
+        importance: 0.5,
+      },
+      visual: {
+        color: '#FFFFFF',
+        size: 0.8,
+        shape: 'sphere',
+        glow: false,
+        icon: '📄',
+      },
     };
   }
 
-  parseConnection(raw: any): KnowledgeConnection {
+  parseConnection(raw: any): Connection {
     return {
+      id: `${raw.source}->${raw.target}`,
       source: raw.source,
       target: raw.target,
-      type: raw.type || 'default'
+      type: raw.type || 'related',
+      strength: raw.strength || 0.5,
+      label: raw.label,
+      metadata: {
+        created: new Date(),
+        manual: false,
+      },
+      visual: {
+        color: '#808080',
+        width: 1,
+        dashed: false,
+        animated: false,
+      },
     };
   }
 
@@ -200,7 +462,7 @@ export class ClaudeConfigAdapter extends BaseAdapter {
       const categories = new Set(
         data.nodes
           .filter(n => n.type === 'skill')
-          .map(n => n.data.category)
+          .map(n => n.tags[0])
           .filter(Boolean)
       );
 

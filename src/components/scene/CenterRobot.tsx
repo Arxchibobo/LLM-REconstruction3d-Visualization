@@ -1,14 +1,53 @@
 'use client';
 
-import { useRef, useMemo } from 'react';
+import { useRef, useMemo, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Group, Points, BufferGeometry, PointsMaterial, BufferAttribute, AdditiveBlending } from 'three';
+import { useKnowledgeStore } from '@/stores/useKnowledgeStore';
+import { useSpring, animated } from '@react-spring/three';
 
 export default function CenterRobot() {
   const robotRef = useRef<Group>(null);
   const outerRingRef = useRef<Group>(null);
   const middleRingRef = useRef<Group>(null);
   const particlesRef = useRef<Points>(null);
+
+  // 获取 store 中的节点和选择函数
+  const { nodes, setSelectedNode } = useKnowledgeStore();
+
+  // 🎭 点击反馈状态
+  const [clicked, setClicked] = useState(false);
+
+  // 🌊 点击脉冲动画
+  const pulseSpring = useSpring({
+    scale: clicked ? 1.3 : 1.0,
+    emissiveIntensity: clicked ? 1.5 : 0.5,
+    config: { tension: 200, friction: 20 },
+    onRest: () => setClicked(false), // 动画结束后重置
+  });
+
+  // 🎯 点击处理：选择中心的 Claude 节点
+  const handleClick = (e: any) => {
+    e.stopPropagation();
+    // 触发点击动画
+    setClicked(true);
+
+    // 找到中心节点（id 为 'center' 的 claude 类型节点）
+    const centerNode = nodes.find((n) => n.id === 'center');
+    if (centerNode) {
+      setSelectedNode(centerNode);
+    } else {
+    }
+  };
+
+  // 🖱️ Hover 处理
+  const handlePointerOver = () => {
+    document.body.style.cursor = 'pointer';
+  };
+
+  const handlePointerOut = () => {
+    document.body.style.cursor = 'default';
+  };
 
   // 🌌 创建数据流粒子系统
   const particles = useMemo(() => {
@@ -77,17 +116,23 @@ export default function CenterRobot() {
 
   return (
     <group ref={robotRef} position={[0, 0, 0]}>
-      {/* 🤖 核心球体 - Cyberpunk 风格 */}
-      <mesh castShadow>
+      {/* 🤖 核心球体 - Cyberpunk 风格（可点击，带动画） */}
+      <animated.mesh
+        castShadow
+        onClick={handleClick}
+        onPointerOver={handlePointerOver}
+        onPointerOut={handlePointerOut}
+        scale={pulseSpring.scale}
+      >
         <sphereGeometry args={[1.2, 32, 32]} />
-        <meshStandardMaterial
+        <animated.meshStandardMaterial
           color="#0A0E27"
           metalness={0.9}
           roughness={0.1}
           emissive="#00FFFF"
-          emissiveIntensity={0.5}
+          emissiveIntensity={pulseSpring.emissiveIntensity}
         />
-      </mesh>
+      </animated.mesh>
 
       {/* 🔮 内部发光核心 */}
       <mesh>
@@ -127,7 +172,7 @@ export default function CenterRobot() {
           const x = Math.cos(angle) * 2.5;
           const y = Math.sin(angle) * 2.5;
           return (
-            <mesh key={i} position={[x, y, 0]} rotation={[0, 0, angle]}>
+            <mesh key={`outer-ring-${i}`} position={[x, y, 0]} rotation={[0, 0, angle]}>
               <boxGeometry args={[0.8, 0.1, 0.1]} />
               <meshStandardMaterial
                 color="#00FFFF"
@@ -160,7 +205,7 @@ export default function CenterRobot() {
           const x = Math.cos(angle) * 2.0;
           const z = Math.sin(angle) * 2.0;
           return (
-            <mesh key={i} position={[x, 0, z]}>
+            <mesh key={`middle-ring-node-${i}`} position={[x, 0, z]}>
               <sphereGeometry args={[0.12, 16, 16]} />
               <meshStandardMaterial
                 color="#FFFF00"
@@ -216,7 +261,7 @@ export default function CenterRobot() {
         const x = Math.cos(angle) * radius;
         const z = Math.sin(angle) * radius;
         return (
-          <group key={i} position={[x, 0, z]}>
+          <group key={`energy-core-${i}`} position={[x, 0, z]}>
             <mesh>
               <octahedronGeometry args={[0.15]} />
               <meshStandardMaterial

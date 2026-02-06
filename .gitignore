@@ -47,3 +47,12 @@ next-env.d.ts
 
 # OS
 Thumbs.db
+
+# Playwright MCP
+.playwright-mcp/
+
+# Screenshots and temp files
+CCimages/
+*.output
+*.png
+!docs/images/*.png

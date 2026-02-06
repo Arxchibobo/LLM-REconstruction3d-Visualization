@@ -3,6 +3,15 @@ import type { KnowledgeNode, Connection } from '@/types/knowledge';
 import type { ClaudeConfig, ClaudeConfigStats } from '@/types/claude-config';
 import { knowledgeBaseService } from '@/services/knowledge-base/KnowledgeBaseService';
 import { claudeConfigService } from '@/services/claude/ClaudeConfigService';
+import { projectStructureService, ProjectFile } from '@/services/project-structure/ProjectStructureService';
+import {
+  calculateProjectLayout,
+  convertProjectFilesToNodes,
+  createDependencyConnections
+} from '@/utils/projectLayout';
+
+// 可视化模式
+export type VisualizationMode = 'claude-config' | 'project-structure';
 
 interface KnowledgeStore {
   // 数据
@@ -16,6 +25,10 @@ interface KnowledgeStore {
   // Claude配置
   claudeConfig: ClaudeConfig | null;
   claudeConfigStats: ClaudeConfigStats | null;
+
+  // 🆕 项目结构
+  visualizationMode: VisualizationMode;  // 当前可视化模式
+  projectFiles: ProjectFile[];           // 项目文件列表
 
   // UI 状态
   isOpen: boolean;
@@ -59,6 +72,12 @@ interface KnowledgeStore {
 
   // 搜索节点
   searchNodes: (query: string) => KnowledgeNode[];
+
+  // 🆕 切换可视化模式
+  setVisualizationMode: (mode: VisualizationMode) => void;
+
+  // 🆕 加载项目结构
+  loadProjectStructure: (projectPath: string) => Promise<void>;
 }
 
 export const useKnowledgeStore = create<KnowledgeStore>((set, get) => ({
@@ -71,11 +90,13 @@ export const useKnowledgeStore = create<KnowledgeStore>((set, get) => ({
   error: null,
   claudeConfig: null,
   claudeConfigStats: null,
+  visualizationMode: 'claude-config',  // 🆕 默认显示 Claude 配置
+  projectFiles: [],  // 🆕 项目文件列表
   isOpen: true,
   searchQuery: '',
   cameraTarget: null,
   layoutType: 'orbital',  // 🆕 默认使用轨道布局
-  enabledNodeTypes: new Set(['skill', 'plugin', 'mcp', 'document', 'error']),  // 🆕 默认启用所有类型
+  enabledNodeTypes: new Set(['claude', 'adapter', 'category', 'skill', 'plugin', 'mcp', 'hook', 'rule', 'agent', 'memory', 'document', 'error']),  // 🆕 默认启用所有类型（包含工程化节点）
   cameraZoom: 100,  // 🆕 默认缩放 100%
   cameraReset: false,  // 🆕 默认不触发重置
 
@@ -91,15 +112,24 @@ export const useKnowledgeStore = create<KnowledgeStore>((set, get) => ({
   setLoading: (loading) => set({ loading }),
   setError: (error) => set({ error }),
   setEnabledNodeTypes: (enabledNodeTypes) => set({ enabledNodeTypes }),
+  // 🚀 优化版 toggleNodeType - 减少Set创建
   toggleNodeType: (type) =>
     set((state) => {
+      // 检查是否需要修改
+      const hasType = state.enabledNodeTypes.has(type);
+
+      // 创建新Set并修改
       const newTypes = new Set(state.enabledNodeTypes);
-      if (newTypes.has(type)) {
+      if (hasType) {
         newTypes.delete(type);
       } else {
         newTypes.add(type);
       }
-      return { enabledNodeTypes: newTypes };
+
+      // 只有真正发生变化才更新
+      return hasType === newTypes.has(type)
+        ? state
+        : { enabledNodeTypes: newTypes };
     }),
   setCameraZoom: (cameraZoom) => set({ cameraZoom }),
   triggerCameraReset: () => set({ cameraReset: true }, false),  // 触发后立即重置标志
@@ -144,10 +174,6 @@ export const useKnowledgeStore = create<KnowledgeStore>((set, get) => ({
       const allNodes = [...claudeNodes, ...docNodes];
       const allConnections = [...claudeConnections, ...docConnections];
 
-      console.log(
-        `Loaded ${allNodes.length} total nodes (${claudeNodes.length} Claude + ${docNodes.length} docs)`
-      );
-
       // Step 5: 更新Store
       set({
         nodes: allNodes,
@@ -178,7 +204,6 @@ export const useKnowledgeStore = create<KnowledgeStore>((set, get) => ({
         });
       });
     } catch (error: any) {
-      console.error('Failed to load knowledge base:', error);
       set({
         error: error.message || 'Failed to load knowledge base',
         loading: false,
@@ -187,99 +212,148 @@ export const useKnowledgeStore = create<KnowledgeStore>((set, get) => ({
   },
 
   loadClaudeConfig: async (rootPath?: string) => {
+    set({ loading: true, error: null });
+
     try {
       await claudeConfigService.initialize(rootPath);
       const config = claudeConfigService.getConfig();
       const stats = claudeConfigService.getStats();
 
+      // 🔧 关键修复：转换配置为节点和连接
+      const { nodes: claudeNodes, connections: claudeConnections } =
+        claudeConfigService.convertToNodes();
+
+
       set({
         claudeConfig: config,
         claudeConfigStats: stats,
+        nodes: claudeNodes,
+        connections: claudeConnections,
+        loading: false,
       });
-
-      console.log('Claude配置已加载:', stats);
     } catch (error: any) {
-      console.error('加载Claude配置失败:', error);
-      // 不中断主流程，使用mock数据
+      set({
+        error: error.message || 'Failed to load Claude config',
+        loading: false,
+      });
     }
   },
 
-  searchNodes: (query: string) => {
-    const { nodes } = get();
-    if (!query.trim()) return nodes;
+  // 🚀 优化版搜索 - 使用Map缓存避免重复遍历
+  searchNodes: (() => {
+    let cache = new Map<string, KnowledgeNode[]>();
+    let lastNodesLength = 0;
 
-    const lowerQuery = query.toLowerCase();
-    return nodes.filter(
-      (node) =>
-        node.title.toLowerCase().includes(lowerQuery) ||
-        node.description.toLowerCase().includes(lowerQuery) ||
-        node.content.toLowerCase().includes(lowerQuery) ||
-        node.tags.some((tag) => tag.toLowerCase().includes(lowerQuery))
-    );
+    return (query: string) => {
+      const { nodes } = get();
+
+      // 如果节点数量变化,清空缓存
+      if (nodes.length !== lastNodesLength) {
+        cache.clear();
+        lastNodesLength = nodes.length;
+      }
+
+      if (!query.trim()) return nodes;
+
+      // 检查缓存
+      const lowerQuery = query.toLowerCase();
+      if (cache.has(lowerQuery)) {
+        return cache.get(lowerQuery)!;
+      }
+
+      // 执行搜索
+      const results = nodes.filter(
+        (node) =>
+          node.title.toLowerCase().includes(lowerQuery) ||
+          node.description.toLowerCase().includes(lowerQuery) ||
+          node.content.toLowerCase().includes(lowerQuery) ||
+          node.tags.some((tag) => tag.toLowerCase().includes(lowerQuery))
+      );
+
+      // 缓存结果 (最多缓存100个查询)
+      if (cache.size > 100) {
+        const firstKey = cache.keys().next().value;
+        if (firstKey !== undefined) {
+          cache.delete(firstKey);
+        }
+      }
+      cache.set(lowerQuery, results);
+
+      return results;
+    };
+  })(),
+
+  // 🆕 切换可视化模式
+  setVisualizationMode: (mode: VisualizationMode) => {
+    set({ visualizationMode: mode });
+
+    // 根据模式更新启用的节点类型
+    if (mode === 'claude-config') {
+      set({ enabledNodeTypes: new Set(['claude', 'adapter', 'category', 'skill', 'plugin', 'mcp', 'hook', 'rule', 'agent', 'memory', 'document', 'error']) });
+    } else {
+      set({
+        enabledNodeTypes: new Set([
+          'page',
+          'api-route',
+          'component-scene',
+          'component-ui',
+          'service',
+          'store',
+          'util',
+          'type-def',
+          'folder'
+        ])
+      });
+    }
+  },
+
+  // 🆕 加载项目结构 (从 API)
+  loadProjectStructure: async (projectPath?: string) => {
+    set({ loading: true, error: null });
+
+    try {
+
+      // 调用 API
+      const url = (projectPath && projectPath.trim())
+        ? `/api/project-structure?projectPath=${encodeURIComponent(projectPath)}`
+        : '/api/project-structure';
+
+
+      const response = await fetch(url);
+      const result = await response.json();
+
+      if (!result.success) {
+        throw new Error(result.error || '加载项目结构失败');
+      }
+
+      const { files, dependencies } = result.data;
+
+      // 计算布局
+      const positions = calculateProjectLayout(files);
+
+      // 转换为节点
+      const nodes = convertProjectFilesToNodes(files, positions);
+
+      // 创建连接
+      const connections = createDependencyConnections(files);
+
+
+      // 更新状态
+      set({
+        nodes,
+        connections,
+        projectFiles: files,
+        loading: false,
+        visualizationMode: 'project-structure',
+      });
+
+    } catch (error: any) {
+
+      set({
+        error: error.message || '加载项目结构失败',
+        loading: false,
+      });
+    }
   },
 }));
 
-// 生成模拟数据（临时，用于演示）
-function generateMockNodes(): KnowledgeNode[] {
-  const nodeTypes: Array<{
-    type: 'document' | 'error' | 'mcp' | 'skill' | 'plugin';
-    color: string;
-    shape: 'sphere' | 'octahedron' | 'cylinder' | 'torus' | 'dodecahedron';
-  }> = [
-    { type: 'document', color: '#3B82F6', shape: 'sphere' },
-    { type: 'error', color: '#EF4444', shape: 'octahedron' },
-    { type: 'mcp', color: '#06B6D4', shape: 'cylinder' },
-    { type: 'skill', color: '#10B981', shape: 'torus' },
-    { type: 'plugin', color: '#F59E0B', shape: 'dodecahedron' },
-  ];
-
-  return Array.from({ length: 20 }, (_, i) => {
-    const nodeType = nodeTypes[i % nodeTypes.length];
-    return {
-      id: `node-${i}`,
-      type: nodeType.type,
-      title: `${nodeType.type.charAt(0).toUpperCase() + nodeType.type.slice(1)} ${i + 1}`,
-      description: `This is a sample ${nodeType.type} node for demonstration purposes.`,
-      filePath: `/path/to/${nodeType.type}/${i + 1}.md`,
-      content: `# ${nodeType.type} ${i + 1}\n\nSample content...`,
-      tags: ['sample', nodeType.type, `tag${i}`],
-      links: [`/link/${i}`],
-      position: [0, 0, 0], // Will be calculated by layout algorithm
-      metadata: {
-        size: Math.random() * 10000 + 1000,
-        created: new Date(2024, 0, i + 1),
-        modified: new Date(2024, 1, i + 1),
-        accessed: new Date(),
-        accessCount: Math.floor(Math.random() * 100),
-        importance: Math.random(),
-      },
-      visual: {
-        color: nodeType.color,
-        size: 1 + Math.random() * 0.5,
-        shape: nodeType.shape,
-        glow: i % 3 === 0,
-        icon: nodeType.type,
-      },
-    };
-  });
-}
-
-function generateMockConnections(): Connection[] {
-  return Array.from({ length: 30 }, (_, i) => ({
-    id: `conn-${i}`,
-    source: `node-${Math.floor(Math.random() * 20)}`,
-    target: `node-${Math.floor(Math.random() * 20)}`,
-    type: ['reference', 'dependency', 'related'][Math.floor(Math.random() * 3)] as any,
-    strength: Math.random(),
-    metadata: {
-      created: new Date(),
-      manual: false,
-    },
-    visual: {
-      color: '#FFFFFF',
-      width: 2,
-      dashed: i % 2 === 0,
-      animated: i % 3 === 0,
-    },
-  }));
-}

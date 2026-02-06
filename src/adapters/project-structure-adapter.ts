@@ -6,7 +6,7 @@
  */
 
 import { BaseAdapter, AdapterConfig } from './base';
-import { KnowledgeNode, KnowledgeConnection, KnowledgeGraphData, NodeType } from '@/types/knowledge';
+import { KnowledgeNode, Connection, KnowledgeGraph, NodeType } from '@/types/knowledge';
 
 /**
  * 文件节点原始数据
@@ -40,11 +40,10 @@ export class ProjectStructureAdapter extends BaseAdapter {
     });
   }
 
-  async fetchData(): Promise<KnowledgeGraphData> {
+  async fetchData(): Promise<KnowledgeGraph> {
     const cacheKey = 'project-structure-data';
-    const cached = this.getCachedData<KnowledgeGraphData>(cacheKey);
+    const cached = this.getCachedData<KnowledgeGraph>(cacheKey);
     if (cached) {
-      console.log('[ProjectStructureAdapter] Returning cached data');
       return cached;
     }
 
@@ -72,9 +71,9 @@ export class ProjectStructureAdapter extends BaseAdapter {
   /**
    * 将项目结构转换为知识图谱
    */
-  private transformToGraph(data: ProjectStructureResponse): KnowledgeGraphData {
+  private transformToGraph(data: ProjectStructureResponse): KnowledgeGraph {
     const nodes: KnowledgeNode[] = [];
-    const connections: KnowledgeConnection[] = [];
+    const connections: Connection[] = [];
 
     // 创建文件/文件夹节点
     data.files.forEach(file => {
@@ -84,26 +83,37 @@ export class ProjectStructureAdapter extends BaseAdapter {
       // 创建父子关系连接
       const parentPath = this.getParentPath(file.path);
       if (parentPath && parentPath !== data.rootPath) {
-        connections.push({
+        connections.push(this.parseConnection({
           source: this.getNodeId(file.path),
           target: this.getNodeId(parentPath),
-          type: 'childOf'
-        });
+          type: 'contains',
+          strength: 0.8,
+        }));
       }
 
       // 创建导入依赖连接
       if (file.imports && file.imports.length > 0) {
         file.imports.forEach(importPath => {
-          connections.push({
+          connections.push(this.parseConnection({
             source: this.getNodeId(file.path),
             target: this.getNodeId(importPath),
-            type: 'imports'
-          });
+            type: 'import',
+            strength: 0.6,
+          }));
         });
       }
     });
 
-    return { nodes, connections };
+    return {
+      nodes,
+      connections,
+      metadata: {
+        version: '1.0',
+        lastUpdated: new Date(),
+        totalSize: nodes.length + connections.length,
+        fileCount: nodes.length,
+      },
+    };
   }
 
   parseNode(raw: any): KnowledgeNode {
@@ -113,24 +123,51 @@ export class ProjectStructureAdapter extends BaseAdapter {
     return {
       id: this.getNodeId(file.path),
       type: nodeType,
-      data: {
-        title: file.name,
-        description: file.path,
-        category: file.category || this.inferCategory(file.path),
-        metadata: {
-          path: file.path,
-          fileType: file.type,
-          extension: this.getExtension(file.name)
-        }
-      }
+      title: file.name,
+      description: file.path,
+      filePath: file.path,
+      content: '',
+      tags: [file.category || this.inferCategory(file.path)],
+      links: file.imports || [],
+      position: [0, 0, 0],
+      tier: file.type === 'folder' ? 'CoreSkill' : 'Item',
+      orbit: 3,
+      metadata: {
+        size: 1,
+        created: new Date(),
+        modified: new Date(),
+        accessed: new Date(),
+        accessCount: 0,
+        importance: 0.5,
+      },
+      visual: {
+        color: '#FFFFFF',
+        size: file.type === 'folder' ? 1.0 : 0.6,
+        shape: file.type === 'folder' ? 'cube' : 'sphere',
+        glow: false,
+        icon: file.type === 'folder' ? '📁' : '📄',
+      },
     };
   }
 
-  parseConnection(raw: any): KnowledgeConnection {
+  parseConnection(raw: any): Connection {
     return {
+      id: `${raw.source}->${raw.target}`,
       source: raw.source,
       target: raw.target,
-      type: raw.type || 'default'
+      type: raw.type || 'related',
+      strength: raw.strength || 0.5,
+      label: raw.label,
+      metadata: {
+        created: new Date(),
+        manual: false,
+      },
+      visual: {
+        color: '#808080',
+        width: 1,
+        dashed: false,
+        animated: false,
+      },
     };
   }
 
@@ -155,13 +192,13 @@ export class ProjectStructureAdapter extends BaseAdapter {
       return 'page';
     }
     if (path.includes('/api/')) {
-      return 'api';
+      return 'api-route';
     }
     if (path.includes('/components/scene/')) {
-      return 'scene-component';
+      return 'component-scene';
     }
     if (path.includes('/components/')) {
-      return 'ui-component';
+      return 'component-ui';
     }
     if (path.includes('/services/')) {
       return 'service';
@@ -173,10 +210,10 @@ export class ProjectStructureAdapter extends BaseAdapter {
       return 'util';
     }
     if (path.includes('/types/') || path.endsWith('.d.ts')) {
-      return 'type';
+      return 'type-def';
     }
 
-    return 'file';
+    return 'document';
   }
 
   /**
@@ -226,7 +263,7 @@ export class ProjectStructureAdapter extends BaseAdapter {
       const fileTypes = new Set(
         data.nodes
           .filter(n => n.type !== 'folder')
-          .map(n => n.data.metadata?.extension)
+          .map(n => this.getExtension(n.title))
           .filter(Boolean)
       );
 

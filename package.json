@@ -1,21 +1,19 @@
 {
-  "name": "reconstruction-3d",
-  "version": "0.1.0",
-  "description": "3D Knowledge Base Visualization System",
+  "name": "llm-reconstruction3d-visualization",
+  "version": "1.0.0",
+  "description": "3D visualization of Claude Code's working patterns, operation modes, and configuration architecture",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Arxchibobo/LLM-REconstruction3d-Visualization"
+  },
+  "keywords": ["claude-code", "3d-visualization", "three.js", "react", "nextjs", "ai-tools", "developer-tools"],
   "main": "dist-electron/main.js",
   "scripts": {
     "dev": "next dev",
     "dev:clean": "npm run clean && npm run dev",
-    "dev:electron": "concurrently \"npm run dev:next\" \"npm run dev:electron-start\"",
-    "dev:next": "next dev",
-    "dev:electron-start": "wait-on http://localhost:3000 && electron .",
-    "start:dev": "bash start-dev.sh",
-    "build": "npm run build:next && npm run build:electron",
-    "build:next": "next build",
-    "build:electron": "tsc -p tsconfig.electron.json",
-    "start": "electron .",
+    "build": "next build",
+    "start": "next start",
     "clean": "rimraf .next node_modules/.cache",
-    "kill-ports": "npx kill-port 3000 3001 3002",
     "lint": "next lint",
     "type-check": "tsc --noEmit"
   },

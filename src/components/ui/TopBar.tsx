@@ -2,26 +2,43 @@
 
 import { Search, Settings, FolderOpen, Grid3x3, FileText, Circle, Grid, Network, GitBranch } from 'lucide-react';
 import { useKnowledgeStore } from '@/stores/useKnowledgeStore';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 export default function TopBar() {
-  const { searchQuery, setSearchQuery, setCameraTarget, layoutType, setLayoutType, loadKnowledgeBase } = useKnowledgeStore();
+  const { searchQuery, setSearchQuery, setCameraTarget, layoutType, setLayoutType, loadKnowledgeBase, loading, setLoading, setError } = useKnowledgeStore();
   const [isSearchFocused, setIsSearchFocused] = useState(false);
+  const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // 加载超时保护：15秒后强制重置loading状态
+  useEffect(() => {
+    if (loading) {
+      loadingTimeoutRef.current = setTimeout(() => {
+        setLoading(false);
+        setError('加载超时，已使用默认数据');
+      }, 15000);
+    } else {
+      // loading完成后清除超时
+      if (loadingTimeoutRef.current) {
+        clearTimeout(loadingTimeoutRef.current);
+        loadingTimeoutRef.current = null;
+      }
+    }
+
+    return () => {
+      if (loadingTimeoutRef.current) {
+        clearTimeout(loadingTimeoutRef.current);
+      }
+    };
+  }, [loading, setLoading, setError]);
 
   // 应用启动时自动加载知识库
   useEffect(() => {
     const autoLoadKnowledgeBase = async () => {
       const defaultPath = 'E:\\Bobo\'s Coding cache\\.claude';
-      console.log('=== TopBar Auto-Load Start ===');
-      console.log('Path:', defaultPath);
-      console.log('window.electron available:', !!window.electron);
 
       try {
         await loadKnowledgeBase(defaultPath);
-        console.log('=== Auto-Load Complete ===');
       } catch (error) {
-        console.error('=== Auto-Load FAILED ===');
-        console.error('Error:', error);
       }
     };
 
@@ -32,13 +49,11 @@ export default function TopBar() {
     if (window.electron) {
       const path = await window.electron.dialog.selectDirectory();
       if (path) {
-        console.log('Loading knowledge base from:', path);
         await loadKnowledgeBase(path);
       }
     } else {
       // Fallback: use default path
       const defaultPath = 'C:\\Users\\Administrator\\.claude';
-      console.log('Loading knowledge base from default path:', defaultPath);
       await loadKnowledgeBase(defaultPath);
     }
   };

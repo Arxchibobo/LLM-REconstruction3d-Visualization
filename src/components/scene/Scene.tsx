@@ -6,13 +6,23 @@ import { EffectComposer, Bloom } from '@react-three/postprocessing';
 import { Suspense } from 'react';
 import KnowledgeGraph from './KnowledgeGraph';
 import SpaceBackground from './SpaceBackground';
+import AttentionFlow from './AttentionFlow';
 import Camera from './Camera';
 import CameraController from './CameraController';
 import LoadingScreen from '../ui/LoadingScreen';
 import { useKnowledgeStore } from '@/stores/useKnowledgeStore';
 
 export default function Scene() {
-  const { loading, nodes } = useKnowledgeStore();
+  const { loading, nodes, setSelectedNode, setHoveredNode, selectedNode } = useKnowledgeStore();
+
+  // 🔒 Hook Layer 专注模式
+  const isHookLayerFocused = selectedNode?.id === 'layer-hooks';
+
+  // 🎯 点击空白处取消选中
+  const handlePointerMissed = () => {
+    setSelectedNode(null);
+    setHoveredNode(null);
+  };
 
   // 显示Loading状态
   if (loading) {
@@ -42,14 +52,13 @@ export default function Scene() {
       }}
       camera={{ position: [0, 10, 20], fov: 75, near: 0.1, far: 1000 }}
       className="no-select"
+      onPointerMissed={handlePointerMissed}
       onCreated={({ gl }) => {
         // WebGL context lost/restored事件处理
         gl.domElement.addEventListener('webglcontextlost', (e) => {
-          console.warn('WebGL context lost, preventing default...');
           e.preventDefault();
         });
         gl.domElement.addEventListener('webglcontextrestored', () => {
-          console.log('WebGL context restored');
         });
       }}
     >
@@ -75,6 +84,9 @@ export default function Scene() {
       <Suspense fallback={null}>
         <KnowledgeGraph />
       </Suspense>
+
+      {/* Claude 注意力流可视化 - Hook Layer 模式下隐藏 */}
+      {!isHookLayerFocused && <AttentionFlow />}
 
       {/* 后处理效果 - Vaporwave 辉光 */}
       <EffectComposer>

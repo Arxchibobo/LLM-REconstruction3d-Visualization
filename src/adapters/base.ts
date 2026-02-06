@@ -6,7 +6,7 @@
  * 只需实现此接口即可接入系统
  */
 
-import { KnowledgeNode, KnowledgeConnection, KnowledgeGraphData } from '@/types/knowledge';
+import { KnowledgeNode, Connection, KnowledgeGraph } from '@/types/knowledge';
 
 export interface DataSourceAdapter {
   /**
@@ -33,7 +33,7 @@ export interface DataSourceAdapter {
    * 获取完整的知识图谱数据
    * @returns 包含节点和连接的图谱数据
    */
-  fetchData(): Promise<KnowledgeGraphData>;
+  fetchData(): Promise<KnowledgeGraph>;
 
   /**
    * 解析原始数据为节点
@@ -47,7 +47,7 @@ export interface DataSourceAdapter {
    * @param raw 原始连接数据
    * @returns 标准化的连接对象
    */
-  parseConnection(raw: any): KnowledgeConnection;
+  parseConnection(raw: any): Connection;
 
   /**
    * 验证数据有效性
@@ -124,9 +124,9 @@ export abstract class BaseAdapter implements DataSourceAdapter {
     };
   }
 
-  abstract fetchData(): Promise<KnowledgeGraphData>;
+  abstract fetchData(): Promise<KnowledgeGraph>;
   abstract parseNode(raw: any): KnowledgeNode;
-  abstract parseConnection(raw: any): KnowledgeConnection;
+  abstract parseConnection(raw: any): Connection;
 
   /**
    * 默认验证：检查基本字段是否存在
@@ -198,7 +198,6 @@ export class AdapterRegistry {
    */
   register(name: string, factory: AdapterFactory): void {
     if (this.adapters.has(name)) {
-      console.warn(`Adapter ${name} already registered, overwriting...`);
     }
     this.adapters.set(name, factory);
   }

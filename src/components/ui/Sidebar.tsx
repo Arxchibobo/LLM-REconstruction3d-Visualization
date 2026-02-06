@@ -242,7 +242,6 @@ export default function Sidebar() {
         <button
           onClick={() => {
             if (selectedNode.filePath) {
-              console.log('Opening file:', selectedNode.filePath);
               // 在浏览器中提示用户文件路径
               alert(`File path: ${selectedNode.filePath}\n\n(Open functionality requires Electron)`);
             }
@@ -253,7 +252,6 @@ export default function Sidebar() {
         </button>
         <button
           onClick={() => {
-            console.log('Edit node:', selectedNode.id);
             alert(`Edit functionality coming soon!\nNode: ${selectedNode.title}`);
           }}
           className="flex-1 px-4 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-500 text-white rounded-lg hover:from-cyan-600 hover:to-blue-600 transition-all text-sm font-semibold shadow-lg shadow-cyan-500/50 border border-cyan-400/30 hover:scale-[1.02] active:scale-[0.98]"

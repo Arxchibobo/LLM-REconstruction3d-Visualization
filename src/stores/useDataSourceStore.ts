@@ -8,7 +8,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { getAdapter, listAdapters, type DataSourceAdapter } from '@/adapters';
-import type { KnowledgeGraphData } from '@/types/knowledge';
+import type { KnowledgeGraph } from '@/types/knowledge';
 
 interface DataSourceState {
   // 当前适配器
@@ -16,7 +16,7 @@ interface DataSourceState {
   availableAdapters: ReturnType<typeof listAdapters>;
 
   // 数据
-  data: KnowledgeGraphData | null;
+  data: KnowledgeGraph | null;
   isLoading: boolean;
   error: Error | null;
 
@@ -115,7 +115,6 @@ export const useDataSourceStore = create<DataSourceState>()(
 
         // 如果已有数据，跳过加载
         if (data) {
-          console.log('[DataSourceStore] Data already loaded');
           return;
         }
 

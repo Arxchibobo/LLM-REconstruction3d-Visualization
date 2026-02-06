@@ -1,5 +1,10 @@
 import * as d3Force from 'd3-force-3d';
 import type { KnowledgeNode, Connection } from '@/types/knowledge';
+import {
+  calculateEngineeringLayout,
+  applyEngineeringStyles,
+  createEngineeringConnections,
+} from './engineeringLayout';
 
 export interface LayoutResult {
   nodes: KnowledgeNode[];
@@ -24,7 +29,7 @@ const DEFAULT_OPTIONS: Required<ForceLayoutOptions> = {
 
 /**
  * 放射状布局 - Vibecraft 风格
- * 所有节点围绕中心机器人呈放射状排列
+ * 🔄 全部落在水平面上，提高3D空间可读性
  */
 export function computeRadialLayout(
   nodes: KnowledgeNode[],
@@ -48,7 +53,7 @@ export function computeRadialLayout(
     const randomOffset = Math.random() * 2 - 1;
     const x = Math.cos(angle) * distance + randomOffset;
     const z = Math.sin(angle) * distance + randomOffset;
-    const y = (Math.random() - 0.5) * 6 + layer * 2; // 不同层有不同高度
+    const y = 0; // 🔄 固定Y=0，全部落在水平面上
 
     resultNodes.push({
       ...node,
@@ -68,20 +73,19 @@ export function computeRadialLayout(
 }
 
 /**
- * 球形布局 - 节点均匀分布在球面上
+ * 球形布局 - 🔄 改为圆形水平布局（全部落在Y=0平面）
  */
 export function computeSphereLayout(
   nodes: KnowledgeNode[],
   radius: number = 20
 ): LayoutResult {
   const resultNodes = nodes.map((node, index) => {
-    // 使用黄金螺旋算法均匀分布点
-    const phi = Math.acos(1 - 2 * (index + 0.5) / nodes.length);
-    const theta = Math.PI * (1 + Math.sqrt(5)) * index;
+    // 🔄 使用圆形布局代替球形，全部落在水平面上
+    const angle = (index / nodes.length) * Math.PI * 2;
 
-    const x = radius * Math.sin(phi) * Math.cos(theta);
-    const y = radius * Math.sin(phi) * Math.sin(theta);
-    const z = radius * Math.cos(phi);
+    const x = radius * Math.cos(angle);
+    const z = radius * Math.sin(angle);
+    const y = 0; // 🔄 固定Y=0
 
     return {
       ...node,
@@ -101,7 +105,7 @@ export function computeSphereLayout(
 }
 
 /**
- * 螺旋布局 - 节点呈螺旋上升排列
+ * 螺旋布局 - 🔄 改为水平螺旋（全部落在Y=0平面）
  */
 export function computeSpiralLayout(
   nodes: KnowledgeNode[],
@@ -110,11 +114,10 @@ export function computeSpiralLayout(
   const resultNodes = nodes.map((node, index) => {
     const angle = index * 0.5; // 螺旋角度
     const radius = 10 + index * 0.8; // 半径逐渐增大
-    const height = index * spacing; // 高度
 
     const x = Math.cos(angle) * radius;
     const z = Math.sin(angle) * radius;
-    const y = height - (nodes.length * spacing) / 2; // 居中
+    const y = 0; // 🔄 固定Y=0，全部落在水平面上
 
     return {
       ...node,
@@ -220,7 +223,7 @@ export function computeCircularLayout(
       ...node,
       position: [
         Math.cos(angle) * radius,
-        Math.sin(index * 0.5) * 2,
+        0, // 🔄 固定Y=0，全部落在水平面上
         Math.sin(angle) * radius,
       ] as [number, number, number],
     };
@@ -331,82 +334,60 @@ export interface OrbitalLayoutResult extends LayoutResult {
     orbit: OrbitDefinition;
     nodes: KnowledgeNode[];
   }[];
+  connections?: Connection[]; // 工程化调用关系连接
 }
 
 export function computeOrbitalLayout(
   nodes: KnowledgeNode[],
   connections: Connection[]
 ): OrbitalLayoutResult {
-  // 1. 将节点分类到不同轨道
+  // 🆕 使用工程化3层轨道布局系统
+
+  // 1. 计算工程化布局位置
+  const positions = calculateEngineeringLayout(nodes);
+
+  // 2. 应用工程化样式和配色
+  const styledNodes = applyEngineeringStyles(nodes, positions);
+
+  // 3. 将节点按层级分组（用于统计信息）
   const orbitNodes: Map<number, KnowledgeNode[]> = new Map();
   ORBIT_DEFINITIONS.forEach((orbit) => orbitNodes.set(orbit.id, []));
 
-  nodes.forEach((node) => {
+  styledNodes.forEach((node) => {
     const orbitId = classifyNodeToOrbit(node);
     orbitNodes.get(orbitId)?.push(node);
   });
 
-  // 2. 在每个轨道上均匀分布节点
-  const resultNodes: KnowledgeNode[] = [];
+  // 4. 创建轨道信息
   const orbitsInfo: OrbitalLayoutResult['orbits'] = [];
-
   ORBIT_DEFINITIONS.forEach((orbit) => {
     const nodesInOrbit = orbitNodes.get(orbit.id) || [];
-
-    // 检查是否超过最大节点数
-    let displayNodes = nodesInOrbit;
-    if (orbit.maxNodes && nodesInOrbit.length > orbit.maxNodes) {
-      console.warn(
-        `⚠️ 轨道 ${orbit.id} 节点数超限: ${nodesInOrbit.length} > ${orbit.maxNodes}`
-      );
-      // 优先显示前 N 个
-      displayNodes = nodesInOrbit.slice(0, orbit.maxNodes);
-    }
-
-    // 均匀分布在轨道上
-    const angleStep = (2 * Math.PI) / displayNodes.length;
-
-    displayNodes.forEach((node, index) => {
-      const angle = index * angleStep;
-
-      // 添加轻微的随机偏移，避免过于机械
-      const randomOffset = (Math.random() - 0.5) * 0.5;
-
-      const x = orbit.radius * Math.cos(angle + randomOffset);
-      const z = orbit.radius * Math.sin(angle + randomOffset);
-
-      // Y 轴位置：不同轨道有轻微高度差
-      const y = (orbit.id - 2) * 2 + (Math.random() - 0.5) * 1;
-
-      resultNodes.push({
-        ...node,
-        position: [x, y, z] as [number, number, number],
-        // 添加轨道信息（用于后续渲染）
-        orbit: orbit.id as 1 | 2 | 3,
-      });
-    });
-
     orbitsInfo.push({
       orbit,
-      nodes: displayNodes,
+      nodes: nodesInOrbit,
     });
   });
 
-  // 3. 创建节点映射
-  const nodeMap = resultNodes.reduce((acc, node) => {
+  // 5. 创建节点映射
+  const nodeMap = styledNodes.reduce((acc, node) => {
     acc[node.id] = node;
     return acc;
   }, {} as Record<string, KnowledgeNode>);
 
-  console.log(`🪐 轨道布局完成:`);
+  // 6. 创建工程化调用关系连接 (Phase 5)
+  const engineeringConnections = createEngineeringConnections(styledNodes);
+
+  // 7. 合并原有连接和工程化连接
+  const allConnections = [...connections, ...engineeringConnections];
+
   orbitsInfo.forEach(({ orbit, nodes }) => {
-    console.log(`  轨道 ${orbit.id}: ${nodes.length} 个节点 (半径 ${orbit.radius})`);
   });
 
   return {
-    nodes: resultNodes,
+    nodes: styledNodes,
     nodeMap,
     orbits: orbitsInfo,
+    connections: allConnections, // 返回包含工程化连接的完整连接列表
   };
 }
 
@@ -484,8 +465,8 @@ export function computeHierarchicalLayout(
 
     const levelWidth = levels[levelIndex].length;
     const x = (positionInLevel - levelWidth / 2) * nodeSpacing;
-    const y = -levelIndex * levelSpacing;
-    const z = 0;
+    const y = 0; // 🔄 固定Y=0，全部落在水平面上
+    const z = -levelIndex * levelSpacing; // 🔄 层级改用Z轴展示
 
     return {
       ...node,

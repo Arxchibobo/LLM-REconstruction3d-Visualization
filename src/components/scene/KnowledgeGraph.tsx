@@ -3,7 +3,7 @@
 import { useRef, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Group, Vector3 } from 'three';
-import { Line } from '@react-three/drei';
+import { QuadraticBezierLine, Line } from '@react-three/drei';
 import { useKnowledgeStore } from '@/stores/useKnowledgeStore';
 import {
   computeRadialLayout,
@@ -12,10 +12,72 @@ import {
   computeHierarchicalLayout,
   computeOrbitalLayout,
 } from '@/utils/layout';
-import type { KnowledgeNode } from '@/types/knowledge';
+import type { KnowledgeNode, Connection } from '@/types/knowledge';
 import PlanetNode from './PlanetNode';
+import InstancedPlanetNodes from './InstancedPlanetNodes';
 import CenterRobot from './CenterRobot';
+import GridFloor from './GridFloor';
+import ParticleField from './ParticleField';
+import HooksLayerDetail from './HooksLayerDetail';
 
+/**
+ * 根据形状计算表面乘数
+ */
+function getShapeMultiplier(shape: string | undefined): number {
+  switch(shape) {
+    case 'sphere': return 1.0;
+    case 'cube':
+    case 'box': return 1.2;
+    case 'cylinder': return 1.1;
+    case 'cone': return 1.3;
+    case 'octahedron': return 1.15;
+    case 'dodecahedron': return 1.1;
+    case 'icosahedron': return 1.1;
+    case 'torus': return 1.4;
+    default: return 1.0;
+  }
+}
+
+/**
+ * 计算连接线的弧度和侧向偏移
+ * 根据连接索引和组大小计算更分散的偏移
+ */
+function calculateCurveOffset(
+  conn: Connection,
+  index: number,
+  totalConnections: number,
+  distance: number,
+  isCoreConnection: boolean,
+  isResourceConnection: boolean
+): { arcHeight: number; sideOffset: number } {
+  if (isCoreConnection) {
+    // 骨架连接：优雅的向上拱形
+    return {
+      arcHeight: Math.min(distance * 0.4, 6),
+      sideOffset: 0
+    };
+  }
+
+  if (isResourceConnection) {
+    // 资源连接：根据索引分散侧向偏移
+    const spreadFactor = totalConnections > 1
+      ? ((index % 10) / Math.max(9, 1)) - 0.5
+      : 0;
+    const sideOffset = spreadFactor * 4; // 更大的分散范围
+
+    // 交替高度避免重叠
+    const heightVariation = ((index % 3) - 1) * 1.5;
+    const arcHeight = Math.min(distance * 0.15, 3) + heightVariation;
+
+    return { arcHeight, sideOffset };
+  }
+
+  // 默认
+  return {
+    arcHeight: Math.min(distance * 0.25, 4),
+    sideOffset: 0
+  };
+}
 export default function KnowledgeGraph() {
   const groupRef = useRef<Group>(null);
   const {
@@ -25,7 +87,8 @@ export default function KnowledgeGraph() {
     searchNodes,
     layoutType,
     hoveredNode,
-    enabledNodeTypes  // 🆕 获取启用的节点类型
+    selectedNode,
+    enabledNodeTypes
   } = useKnowledgeStore();
 
   // 搜索和类型过滤节点
@@ -39,50 +102,44 @@ export default function KnowledgeGraph() {
     return result;
   }, [nodes, searchQuery, searchNodes, enabledNodeTypes]);
 
-  // 使用布局算法计算节点位置
+  // 使用布局算法计算节点位置和工程化连接
   const layout = useMemo(() => {
-    if (filteredNodes.length === 0) return { nodes: [], nodeMap: {} };
-
-    console.log(`Computing ${layoutType} layout for ${filteredNodes.length} nodes...`);
-    const startTime = performance.now();
+    if (filteredNodes.length === 0) return { nodes: [], nodeMap: {}, connections: [] };
 
     let result;
     switch (layoutType) {
       case 'orbital':
-        // 🪐 轨道布局（默认）
         result = computeOrbitalLayout(filteredNodes, connections);
         break;
       case 'force':
-        // 改用放射状布局替代力导向布局
-        result = computeRadialLayout(filteredNodes, 15, 3);
+        result = { ...computeRadialLayout(filteredNodes, 15, 3), connections };
         break;
       case 'circular':
-        // 改用球形布局
-        result = computeSphereLayout(filteredNodes, 20);
+        result = { ...computeSphereLayout(filteredNodes, 20), connections };
         break;
       case 'grid':
-        // 改用螺旋布局
-        result = computeSpiralLayout(filteredNodes, 3);
+        result = { ...computeSpiralLayout(filteredNodes, 3), connections };
         break;
       case 'hierarchical':
-        result = computeHierarchicalLayout(filteredNodes, connections, 10, 5);
+        result = { ...computeHierarchicalLayout(filteredNodes, connections, 10, 5), connections };
         break;
       default:
         result = computeOrbitalLayout(filteredNodes, connections);
     }
 
-    const endTime = performance.now();
-    console.log(`Layout computed in ${(endTime - startTime).toFixed(2)}ms`);
-
     return result;
   }, [filteredNodes, connections, layoutType]);
 
-  // 整体旋转动画
-  useFrame((state) => {
-    if (groupRef.current) {
-      groupRef.current.rotation.y = Math.sin(state.clock.elapsedTime * 0.1) * 0.3;
-    }
-  });
+  // 注意：不再同步 layout 到 store，避免无限循环
+  // AttentionFlow 组件会直接使用 store 中的原始节点位置
+  // 连接线使用 layout.nodeMap 中的计算位置
+
+  // 🔄 禁用自动旋转动画 - 保持节点和连接线对齐
+  // useFrame((state) => {
+  //   if (groupRef.current) {
+  //     groupRef.current.rotation.y = Math.sin(state.clock.elapsedTime * 0.1) * 0.3;
+  //   }
+  // });
 
   // 当搜索结果为空时显示消息
   if (filteredNodes.length === 0) {
@@ -92,96 +149,271 @@ export default function KnowledgeGraph() {
   // 过滤掉中心节点（已由CenterRobot独立渲染）
   const planetsToRender = layout.nodes.filter((node) => node.id !== 'center');
 
+  // 🚀 性能优化: 当节点数量 >50 时使用 InstancedMesh
+  // 暂时禁用 InstancedMesh 以支持节点交互（点击、hover）
+  // TODO: 后续可以为 InstancedMesh 添加 raycasting 支持
+  const useInstancedRendering = false; // planetsToRender.length > 500;
+
   /**
-   * 🔗 连接线系统（Phase 2.2）
-   * 默认隐藏所有连接线，hover 时显示相关连接
+   * 🔗 优雅的连接线系统 - 分层渐进显示
+   *
+   * 层级结构：
+   * - 第0层: center (CenterRobot at [0,0,0])
+   * - 第1层: layer-hooks (核心路由层)
+   * - 第2层: category-xxx (7个分类节点)
+   * - 第3层: 具体资源 (skill, mcp, plugin, hook, rule, agent, memory)
+   *
+   * 显示规则：
+   * - 默认: 只显示 layer-hooks → categories 的骨架线
+   * - Hover category: 显示该 category 到子节点的连接
+   * - Hover 资源节点: 高亮显示该节点到父 category 的路径
+   * - 选中节点: 显示完整调用路径
    */
   const visibleConnections = useMemo(() => {
-    // 如果没有 hover 节点，不显示任何连接线
-    if (!hoveredNode) return [];
+    const allConnections = layout.connections && layout.connections.length > 0
+      ? layout.connections
+      : connections;
 
-    // 找到 hover 节点在同一轨道的最近 3 个节点
-    const hoveredOrbit = hoveredNode.orbit || 3;
-    const sameOrbitNodes = layout.nodes.filter(
-      (node) => node.orbit === hoveredOrbit && node.id !== hoveredNode.id
-    );
+    // 使用 Map 去重连接
+    const uniqueConnections = new Map<string, typeof allConnections[0]>();
 
-    // 计算距离并排序
-    const hoveredPos = new Vector3(...hoveredNode.position);
-    const nearestNodes = sameOrbitNodes
-      .map((node) => ({
-        node,
-        distance: hoveredPos.distanceTo(new Vector3(...node.position)),
-      }))
-      .sort((a, b) => a.distance - b.distance)
-      .slice(0, 3)
-      .map((item) => item.node.id);
-
-    // 相关节点 = 中心机器人 + 同轨道最近 3 个
-    const relevantNodeIds = new Set([
-      'center',
-      hoveredNode.id,
-      ...nearestNodes,
-    ]);
-
-    // 过滤出相关连接
-    const relevantConnections = connections.filter((conn) => {
-      const sourceRelevant = relevantNodeIds.has(conn.source);
-      const targetRelevant = relevantNodeIds.has(conn.target);
-      // 只显示涉及 hover 节点的连接
-      return (
-        (conn.source === hoveredNode.id || conn.target === hoveredNode.id) &&
-        (sourceRelevant || targetRelevant)
-      );
+    // 🎯 核心骨架：layer-hooks → categories（不再显示 center 的连接，由 AttentionFlow 处理）
+    const skeletonConnections = allConnections.filter((conn) => {
+      // layer-hooks 到各 category 的路由连接
+      if (conn.source === 'layer-hooks' && conn.target.startsWith('category-')) return true;
+      return false;
     });
 
-    console.log(
-      `🔗 Hover: ${hoveredNode.title} (轨道 ${hoveredOrbit}) → 显示 ${relevantConnections.length} 条连接`
-    );
+    // 先添加骨架连接
+    skeletonConnections.forEach(conn => {
+      uniqueConnections.set(conn.id, conn);
+    });
 
-    return relevantConnections;
-  }, [hoveredNode, connections, layout.nodes]);
+    // 🖱️ Hover category 时：显示该 category 下的所有子连接
+    if (hoveredNode?.type === 'category') {
+      const categoryConnections = allConnections.filter((conn) => {
+        return conn.source === hoveredNode.id;
+      });
+      categoryConnections.forEach(conn => {
+        uniqueConnections.set(conn.id, conn);
+      });
+      return Array.from(uniqueConnections.values());
+    }
+
+    // 🖱️ Hover 资源节点时：高亮显示到父 category 的路径
+    if (hoveredNode) {
+      const nodeType = hoveredNode.type;
+      const categoryMap: Record<string, string> = {
+        skill: 'category-skills',
+        mcp: 'category-mcp',
+        plugin: 'category-plugins',
+        rule: 'category-rules',
+        agent: 'category-agents',
+        memory: 'category-memory',
+        hook: 'category-hooks',
+      };
+      const categoryId = categoryMap[nodeType];
+
+      if (categoryId) {
+        // 找到 hovered 节点的直接连接
+        const directConnection = allConnections.filter((conn) => {
+          return conn.target === hoveredNode.id && conn.source === categoryId;
+        });
+        directConnection.forEach(conn => {
+          uniqueConnections.set(conn.id, conn);
+        });
+        return Array.from(uniqueConnections.values());
+      }
+    }
+
+    // 🎯 选中节点时：显示完整调用路径（包括到 center 的连接）
+    if (selectedNode) {
+      const selectedConnections = allConnections.filter((conn) => {
+        return conn.source === selectedNode.id || conn.target === selectedNode.id;
+      });
+      selectedConnections.forEach(conn => {
+        uniqueConnections.set(conn.id, conn);
+      });
+
+      // 如果选中的是 category，也显示 center → layer-hooks → category 的完整路径
+      if (selectedNode.type === 'category' || selectedNode.id === 'layer-hooks') {
+        const corePathConnections = allConnections.filter((conn) => {
+          if (conn.source === 'center' && conn.target === 'layer-hooks') return true;
+          return false;
+        });
+        corePathConnections.forEach(conn => {
+          uniqueConnections.set(conn.id, conn);
+        });
+      }
+
+      return Array.from(uniqueConnections.values());
+    }
+
+    return Array.from(uniqueConnections.values());
+  }, [hoveredNode, selectedNode, connections, layout.connections]);
+
+  // 🔒 Hook Layer 专注模式：选中 layer-hooks 时隐藏其他所有内容
+  const isHookLayerFocused = selectedNode?.id === 'layer-hooks';
 
   return (
     <>
-      {/* 中心机器人 */}
-      <CenterRobot />
+      {/* 🌌 背景增强效果 (Phase 4) - Hook Layer 模式下保留 */}
+      <ParticleField />
+      <GridFloor />
 
-      {/* 连接线 - 仅在 hover 时显示（Phase 2.2） */}
-      {visibleConnections.map((conn) => {
+      {/* 中心机器人 - Hook Layer 模式下隐藏 */}
+      {!isHookLayerFocused && <CenterRobot />}
+
+      {/* 🔗 优雅的连接线系统 - Hook Layer 模式下完全隐藏 */}
+      {!isHookLayerFocused && visibleConnections.map((conn, index) => {
         const source = layout.nodeMap[conn.source];
         const target = layout.nodeMap[conn.target];
 
-        // 如果源节点或目标节点不存在（被过滤或不在布局中），跳过
-        if (!source || !target) return null;
+        // 如果源节点或目标节点不存在，跳过
+        if (!source || !target) {
+          // 特殊处理 center 节点（固定位置）
+          if (conn.source === 'center' || conn.target === 'center') {
+            const centerPos: [number, number, number] = [0, 0, 0];
+            const otherNode = conn.source === 'center' ? target : source;
+            if (!otherNode) return null;
 
-        // 创建曲线路径（添加轻微弧度）
-        const start = new Vector3(...source.position);
-        const end = new Vector3(...target.position);
-        const mid = new Vector3()
-          .addVectors(start, end)
-          .multiplyScalar(0.5)
-          .add(new Vector3(0, 2, 0)); // 向上弯曲
+            const centerVec = new Vector3(...centerPos);
+            const otherVec = new Vector3(...otherNode.position);
+
+            // 🎯 计算几何体表面端点
+            const direction = new Vector3().subVectors(otherVec, centerVec).normalize();
+            const centerSize = 2.5; // CenterRobot 的大小
+            const otherSize = otherNode.visual?.size || 1.0;
+
+            const start = conn.source === 'center'
+              ? centerVec.clone().add(direction.clone().multiplyScalar(centerSize))
+              : otherVec.clone().sub(direction.clone().multiplyScalar(otherSize * 1.2));
+            const end = conn.target === 'center'
+              ? centerVec.clone().sub(direction.clone().multiplyScalar(centerSize))
+              : otherVec.clone().add(direction.clone().multiplyScalar(otherSize * 1.2));
+
+            return (
+              <QuadraticBezierLine
+                key={`conn-${conn.id}-${index}`}
+                start={start}
+                end={end}
+                mid={new Vector3(
+                  (start.x + end.x) / 2,
+                  (start.y + end.y) / 2 + 3,
+                  (start.z + end.z) / 2
+                )}
+                color={conn.visual?.color || '#00FFFF'}
+                lineWidth={2}
+                transparent
+                opacity={0.7}
+              />
+            );
+          }
+          return null;
+        }
+
+        // 获取实际的渲染位置
+        const startPos = source.position;
+        const endPos = target.position;
+        const startCenter = new Vector3(...startPos);
+        const endCenter = new Vector3(...endPos);
+
+        // 🎯 计算几何体表面端点（而不是中心点）
+        // 根据节点尺寸和形状，沿连接方向偏移到表面
+        const direction = new Vector3().subVectors(endCenter, startCenter).normalize();
+        const sourceSize = source.visual?.size || 1.0;
+        const targetSize = target.visual?.size || 1.0;
+
+        // 根据形状获取表面乘数
+        const sourceMultiplier = getShapeMultiplier(source.visual?.shape) * sourceSize;
+        const targetMultiplier = getShapeMultiplier(target.visual?.shape) * targetSize;
+
+        // 起点从源节点表面出发
+        const start = startCenter.clone().add(direction.clone().multiplyScalar(sourceMultiplier * 1.2));
+        // 终点到达目标节点表面
+        const end = endCenter.clone().sub(direction.clone().multiplyScalar(targetMultiplier * 1.2));
+
+        // 计算距离和优雅的弧度
+        const distance = start.distanceTo(end);
+
+        // 🎨 根据连接层级计算弧度
+        const isCoreConnection = conn.source === 'layer-hooks';
+        const isResourceConnection = conn.source.startsWith('category-');
+
+        // 使用辅助函数计算弧度和偏移
+        const { arcHeight, sideOffset } = calculateCurveOffset(
+          conn,
+          index,
+          visibleConnections.length,
+          distance,
+          isCoreConnection,
+          isResourceConnection
+        );
+
+        const midPoint = new Vector3().addVectors(start, end).multiplyScalar(0.5);
+        const controlPoint = new Vector3(
+          midPoint.x + sideOffset,
+          midPoint.y + arcHeight,
+          midPoint.z + sideOffset * 0.3
+        );
+
+        // 🎨 视觉样式
+        const isHoverRelated = hoveredNode && (conn.source === hoveredNode.id || conn.target === hoveredNode.id);
+        const isSelectedRelated = selectedNode && (conn.source === selectedNode.id || conn.target === selectedNode.id);
+        const isHighlighted = isHoverRelated || isSelectedRelated;
+
+        // 🌑 聚焦模式：计算是否应该变暗
+        const shouldDim = (selectedNode && !isSelectedRelated) || (hoveredNode && !isHoverRelated && !selectedNode);
+
+        // 颜色：使用连接定义的颜色，或根据类型选择
+        let color = conn.visual?.color;
+        if (!color) {
+          if (isCoreConnection) color = '#FF00FF';  // 品红：骨架连接
+          else if (isResourceConnection) color = source.visual?.color || '#00FFFF';  // 使用 category 的颜色
+          else color = '#00FFFF';
+        }
+
+        // 线宽和透明度 - 聚焦模式下未相关的连接大幅变暗
+        const lineWidth = shouldDim ? 0.5 : (isHighlighted ? 3 : (isCoreConnection ? 2 : 1.2));
+        const opacity = shouldDim ? 0.08 : (isHighlighted ? 0.95 : (isCoreConnection ? 0.7 : 0.5));
 
         return (
-          <Line
-            key={conn.id}
-            points={[start, mid, end]} // 使用中间点创建曲线
-            color={conn.visual?.color || '#00FFFF'}
-            lineWidth={conn.visual?.width || 1.2}
+          <QuadraticBezierLine
+            key={`conn-${conn.id}-${index}`}
+            start={start}
+            end={end}
+            mid={controlPoint}
+            color={color}
+            lineWidth={lineWidth}
             transparent
-            opacity={0.25} // 低透明度（< 30%）
+            opacity={opacity}
           />
         );
       })}
 
       {/* 节点群组 */}
       <group ref={groupRef}>
-        {/* 渲染星球节点 - 过滤掉中心节点（已由CenterRobot独立渲染） */}
-        {planetsToRender.map((node) => (
-          <PlanetNode key={node.id} node={node} />
-        ))}
+        {/* 🚀 根据节点数量选择渲染方式 */}
+        {useInstancedRendering ? (
+          // 节点数量 >50: 使用 InstancedMesh 批量渲染
+          <InstancedPlanetNodes
+            nodes={planetsToRender}
+            hoveredNodeId={hoveredNode?.id}
+            selectedNodeId={selectedNode?.id}
+          />
+        ) : (
+          // 节点数量 <=50: 使用常规渲染
+          // Hook Layer 模式下只显示 layer-hooks 节点本身
+          planetsToRender
+            .filter(node => !isHookLayerFocused || node.id === 'layer-hooks')
+            .map((node) => (
+              <PlanetNode key={node.id} node={node} />
+            ))
+        )}
       </group>
+
+      {/* 🪝 Hooks Layer 详细视图 - 点击 layer-hooks 节点时显示 */}
+      <HooksLayerDetail layoutPosition={layout.nodeMap['layer-hooks']?.position} />
     </>
   );
 }

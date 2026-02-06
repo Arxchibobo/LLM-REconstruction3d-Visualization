@@ -16,7 +16,6 @@ export class KnowledgeBaseService {
 
   private async loadKnowledgeBase(): Promise<void> {
     if (!window.electron) {
-      console.warn('Electron API not available, using mock data');
       return;
     }
 
@@ -31,7 +30,6 @@ export class KnowledgeBaseService {
       // 构建连接关系
       this.buildConnections();
 
-      console.log(`Loaded ${this.nodes.size} nodes and ${this.connections.length} connections`);
     } catch (error) {
       console.error('Failed to load knowledge base:', error);
     }
@@ -41,7 +39,6 @@ export class KnowledgeBaseService {
     const files: string[] = [];
 
     if (!window.electron) {
-      console.warn('Electron API not available');
       return files;
     }
 
@@ -68,7 +65,6 @@ export class KnowledgeBaseService {
 
   private async loadMarkdownFile(filePath: string): Promise<void> {
     if (!window.electron) {
-      console.warn('Electron API not available');
       return;
     }
 
@@ -225,6 +221,10 @@ export class KnowledgeBaseService {
 
   private getVisualConfig(type: NodeType): KnowledgeNode['visual'] {
     const configs: Record<NodeType, { color: string; shape: ShapeType; glow: boolean; icon: string }> = {
+      // Claude 核心类型
+      claude: { color: '#0066FF', shape: 'sphere', glow: true, icon: 'brain' },
+      adapter: { color: '#00FFFF', shape: 'octahedron', glow: true, icon: 'link' },
+      // Claude配置类型
       document: { color: '#3B82F6', shape: 'sphere', glow: true, icon: 'file' },
       category: { color: '#8B5CF6', shape: 'cube', glow: false, icon: 'folder' },
       error: { color: '#EF4444', shape: 'octahedron', glow: true, icon: 'alert' },
@@ -232,6 +232,21 @@ export class KnowledgeBaseService {
       skill: { color: '#10B981', shape: 'torus', glow: true, icon: 'zap' },
       plugin: { color: '#F59E0B', shape: 'dodecahedron', glow: false, icon: 'puzzle' },
       config: { color: '#6B7280', shape: 'cube', glow: false, icon: 'settings' },
+      // 工程化组件类型
+      hook: { color: '#EF4444', shape: 'cone', glow: true, icon: 'anchor' },
+      rule: { color: '#8B5CF6', shape: 'box', glow: false, icon: 'file-text' },
+      agent: { color: '#EC4899', shape: 'icosahedron', glow: true, icon: 'users' },
+      memory: { color: '#14B8A6', shape: 'sphere', glow: false, icon: 'database' },
+      // 项目结构类型
+      page: { color: '#2196F3', shape: 'sphere', glow: false, icon: 'file' },
+      'api-route': { color: '#4CAF50', shape: 'sphere', glow: false, icon: 'server' },
+      'component-scene': { color: '#9C27B0', shape: 'sphere', glow: false, icon: 'box' },
+      'component-ui': { color: '#E91E63', shape: 'sphere', glow: false, icon: 'layout' },
+      service: { color: '#FF9800', shape: 'sphere', glow: false, icon: 'cog' },
+      store: { color: '#F44336', shape: 'sphere', glow: false, icon: 'database' },
+      util: { color: '#FFEB3B', shape: 'sphere', glow: false, icon: 'wrench' },
+      'type-def': { color: '#607D8B', shape: 'sphere', glow: false, icon: 'code' },
+      folder: { color: '#BDBDBD', shape: 'cube', glow: false, icon: 'folder' },
     };
 
     const config = configs[type] || configs.document;
@@ -328,7 +343,6 @@ export class KnowledgeBaseService {
     if (!window.electron) return;
 
     window.electron.fs.onFileChanged((data: any) => {
-      console.log('File changed:', data);
       // 重新加载知识库
       this.loadKnowledgeBase().then(callback);
     });
