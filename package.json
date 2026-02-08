@@ -15,7 +15,8 @@
     "start": "next start",
     "clean": "rimraf .next node_modules/.cache",
     "lint": "next lint",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "activity-server": "node scripts/activity-server.mjs"
   },
   "dependencies": {
     "react": "^18.2.0",

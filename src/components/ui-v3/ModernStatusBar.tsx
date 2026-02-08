@@ -2,6 +2,7 @@
 
 import { ZoomIn, ZoomOut, Maximize2, Info } from 'lucide-react';
 import { useKnowledgeStore } from '@/stores/useKnowledgeStore';
+import { useActivityStore } from '@/stores/useActivityStore';
 
 /**
  * 赛博朋克科技风格底部状态栏
@@ -15,6 +16,7 @@ export default function ModernStatusBar() {
     setCameraZoom,
     triggerCameraReset,
   } = useKnowledgeStore();
+  const { isLive, isConnected } = useActivityStore();
 
   const handleZoomIn = () => {
     setCameraZoom(Math.min(200, cameraZoom + 10));
@@ -120,9 +122,27 @@ export default function ModernStatusBar() {
           )}
         </div>
 
-        {/* 右侧：版本信息 */}
-        <div className="text-xs text-gray-500 font-mono">
-          KnowGraph v3.0 Cyberpunk
+        {/* 右侧：LIVE 状态 + 版本信息 */}
+        <div className="flex items-center gap-4">
+          {isConnected && (
+            <div className="flex items-center gap-1.5">
+              <div
+                className={`w-2 h-2 rounded-full ${
+                  isLive ? 'bg-red-500 animate-pulse' : 'bg-gray-600'
+                }`}
+              />
+              <span
+                className={`text-xs font-mono font-medium ${
+                  isLive ? 'text-red-400' : 'text-gray-500'
+                }`}
+              >
+                {isLive ? 'LIVE' : 'IDLE'}
+              </span>
+            </div>
+          )}
+          <div className="text-xs text-gray-500 font-mono">
+            KnowGraph v3.0 Cyberpunk
+          </div>
         </div>
       </div>
     </footer>

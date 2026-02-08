@@ -7,6 +7,7 @@ import { Suspense } from 'react';
 import KnowledgeGraph from './KnowledgeGraph';
 import SpaceBackground from './SpaceBackground';
 import AttentionFlow from './AttentionFlow';
+import LiveActivityOverlay from './LiveActivityOverlay';
 import Camera from './Camera';
 import CameraController from './CameraController';
 import LoadingScreen from '../ui/LoadingScreen';
@@ -87,6 +88,9 @@ export default function Scene() {
 
       {/* Claude 注意力流可视化 - Hook Layer 模式下隐藏 */}
       {!isHookLayerFocused && <AttentionFlow />}
+
+      {/* 实时活动叠加层 - Hook Layer 模式下隐藏 */}
+      {!isHookLayerFocused && <LiveActivityOverlay />}
 
       {/* 后处理效果 - Vaporwave 辉光 */}
       <EffectComposer>

@@ -303,9 +303,9 @@ export default function KnowledgeGraph() {
                   (start.z + end.z) / 2
                 )}
                 color={conn.visual?.color || '#00FFFF'}
-                lineWidth={2}
+                lineWidth={1}
                 transparent
-                opacity={0.7}
+                opacity={0.4}
               />
             );
           }
@@ -373,9 +373,9 @@ export default function KnowledgeGraph() {
           else color = '#00FFFF';
         }
 
-        // 线宽和透明度 - 聚焦模式下未相关的连接大幅变暗
-        const lineWidth = shouldDim ? 0.5 : (isHighlighted ? 3 : (isCoreConnection ? 2 : 1.2));
-        const opacity = shouldDim ? 0.08 : (isHighlighted ? 0.95 : (isCoreConnection ? 0.7 : 0.5));
+        // 线宽和透明度 - 更纤细的线条，聚焦模式下变暗
+        const lineWidth = shouldDim ? 0.3 : (isHighlighted ? 2 : (isCoreConnection ? 1.2 : 0.8));
+        const opacity = shouldDim ? 0.06 : (isHighlighted ? 0.85 : (isCoreConnection ? 0.5 : 0.3));
 
         return (
           <QuadraticBezierLine
