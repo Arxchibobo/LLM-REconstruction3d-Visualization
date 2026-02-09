@@ -7,43 +7,91 @@ import * as THREE from 'three';
 import { useKnowledgeStore } from '@/stores/useKnowledgeStore';
 
 // ============================================
+// Surface offset helpers
+// ============================================
+
+function getShapeMultiplier(shape: string | undefined): number {
+  switch (shape) {
+    case 'sphere': return 1.0;
+    case 'cube':
+    case 'box': return 1.2;
+    case 'cylinder': return 1.1;
+    case 'cone': return 1.3;
+    case 'octahedron': return 1.15;
+    case 'dodecahedron': return 1.1;
+    case 'icosahedron': return 1.1;
+    case 'torus': return 1.4;
+    default: return 1.0;
+  }
+}
+
+interface NodeVisualInfo {
+  size: number;
+  shape?: string;
+}
+
+/**
+ * Offset a position along a direction to reach the node surface.
+ */
+function offsetToSurface(
+  center: THREE.Vector3,
+  direction: THREE.Vector3,
+  visual: NodeVisualInfo | undefined,
+  outward: boolean
+): THREE.Vector3 {
+  if (!visual) return center.clone();
+  const multiplier = getShapeMultiplier(visual.shape) * visual.size * 1.2;
+  return center.clone().add(
+    direction.clone().multiplyScalar(outward ? multiplier : -multiplier)
+  );
+}
+
+// ============================================
 // Curve generation - smooth CatmullRom curves
-// with varied heights to prevent overlap
+// with surface-to-surface endpoints
 // ============================================
 
 function createFlowCurve(
-  start: [number, number, number],
-  end: [number, number, number],
+  rawStart: [number, number, number],
+  rawEnd: [number, number, number],
+  sourceVisual: NodeVisualInfo | undefined,
+  targetVisual: NodeVisualInfo | undefined,
   index: number,
   total: number
 ): THREE.CatmullRomCurve3 {
-  const s = new THREE.Vector3(...start);
-  const e = new THREE.Vector3(...end);
-  const dist = s.distanceTo(e);
+  const rawS = new THREE.Vector3(...rawStart);
+  const rawE = new THREE.Vector3(...rawEnd);
+  const dist = rawS.distanceTo(rawE);
 
   if (dist < 0.01) {
-    return new THREE.CatmullRomCurve3([s, e]);
+    return new THREE.CatmullRomCurve3([rawS, rawE]);
   }
 
-  const dir = new THREE.Vector3().subVectors(e, s).normalize();
+  // Direction from source → target
+  const dir = new THREE.Vector3().subVectors(rawE, rawS).normalize();
+
+  // Offset start/end to geometry surfaces
+  const s = offsetToSurface(rawS, dir, sourceVisual, true);
+  const e = offsetToSurface(rawE, dir, targetVisual, false);
+
   const up = new THREE.Vector3(0, 1, 0);
   const perp = new THREE.Vector3().crossVectors(dir, up).normalize();
 
-  // If direction is nearly parallel to up, pick a different reference
   if (perp.lengthSq() < 0.001) {
     perp.crossVectors(dir, new THREE.Vector3(1, 0, 0)).normalize();
   }
 
+  const surfaceDist = s.distanceTo(e);
   const mid = new THREE.Vector3().lerpVectors(s, e, 0.5);
 
   // Arc height proportional to distance, varied by index
-  const baseArc = Math.min(dist * 0.2, 4);
-  const arcVar = total > 1 ? ((index % 5) - 2) * Math.min(dist * 0.06, 1.0) : 0;
+  const baseArc = Math.min(surfaceDist * 0.2, 4);
+  const arcVar = total > 1 ? ((index % 5) - 2) * Math.min(surfaceDist * 0.06, 1.0) : 0;
   mid.y += baseArc + arcVar;
 
   // Side offset perpendicular to connection line
   if (total > 2) {
-    const sideVar = ((index % 7) - 3) * Math.min(dist * 0.04, 0.6);
+    const sideVar = ((index % 7) - 3) * Math.min(surfaceDist * 0.04, 0.6);
     mid.add(perp.clone().multiplyScalar(sideVar));
   }
 
@@ -63,6 +111,8 @@ function createFlowCurve(
 interface FlowLineProps {
   startPos: [number, number, number];
   endPos: [number, number, number];
+  sourceVisual?: NodeVisualInfo;
+  targetVisual?: NodeVisualInfo;
   color: string;
   speed: number;
   index: number;
@@ -74,17 +124,17 @@ interface FlowLineProps {
 }
 
 function FlowLine({
-  startPos, endPos, color, speed, index, total,
+  startPos, endPos, sourceVisual, targetVisual,
+  color, speed, index, total,
   lineWidth = 1.5, opacity = 0.7, dashSize = 0.6, gapSize = 0.35,
 }: FlowLineProps) {
   const lineRef = useRef<any>(null);
 
   const curvePoints = useMemo(() => {
-    const curve = createFlowCurve(startPos, endPos, index, total);
+    const curve = createFlowCurve(startPos, endPos, sourceVisual, targetVisual, index, total);
     return curve.getPoints(64);
   }, [startPos[0], startPos[1], startPos[2], endPos[0], endPos[1], endPos[2], index, total]);
 
-  // Animate dash offset for flowing effect
   useFrame((state) => {
     const mat = lineRef.current?.material;
     if (mat && 'dashOffset' in mat) {
@@ -114,6 +164,8 @@ function FlowLine({
 interface FlowParticlesProps {
   startPos: [number, number, number];
   endPos: [number, number, number];
+  sourceVisual?: NodeVisualInfo;
+  targetVisual?: NodeVisualInfo;
   color: string;
   speed: number;
   index: number;
@@ -122,12 +174,13 @@ interface FlowParticlesProps {
 }
 
 function FlowParticles({
-  startPos, endPos, color, speed, index, total, count = 6,
+  startPos, endPos, sourceVisual, targetVisual,
+  color, speed, index, total, count = 6,
 }: FlowParticlesProps) {
   const pointsRef = useRef<THREE.Points>(null);
 
   const curve = useMemo(
-    () => createFlowCurve(startPos, endPos, index, total),
+    () => createFlowCurve(startPos, endPos, sourceVisual, targetVisual, index, total),
     [startPos[0], startPos[1], startPos[2], endPos[0], endPos[1], endPos[2], index, total]
   );
 
@@ -168,6 +221,20 @@ function FlowParticles({
       />
     </points>
   );
+}
+
+// ============================================
+// Helper to extract visual info from a node
+// ============================================
+
+function getNodeVisual(node: { visual?: { size?: number; shape?: string }; type?: string }): NodeVisualInfo {
+  if (node.visual?.size) {
+    return { size: node.visual.size, shape: node.visual.shape };
+  }
+  // Fallback based on type (matches PlanetNode sizing)
+  if (node.type === 'category') return { size: 1.8, shape: 'octahedron' };
+  if (node.type === 'skill' || node.type === 'mcp') return { size: 1.2, shape: node.type === 'skill' ? 'cube' : 'cylinder' };
+  return { size: 0.8, shape: 'sphere' };
 }
 
 // ============================================
@@ -219,6 +286,8 @@ export default function AttentionFlow() {
           id: conn.id,
           startPos: source.position,
           endPos: target.position,
+          sourceVisual: getNodeVisual(source),
+          targetVisual: getNodeVisual(target),
           color: isSender ? '#00FFFF' : '#FFA500',
           speed: isSender ? 0.8 : 0.4,
           index: i,
@@ -229,6 +298,8 @@ export default function AttentionFlow() {
       id: string;
       startPos: [number, number, number];
       endPos: [number, number, number];
+      sourceVisual: NodeVisualInfo;
+      targetVisual: NodeVisualInfo;
       color: string;
       speed: number;
       index: number;
@@ -250,6 +321,8 @@ export default function AttentionFlow() {
       id: `sim-${sourceNode.id}-${target.id}`,
       startPos: sourceNode.position,
       endPos: target.position,
+      sourceVisual: getNodeVisual(sourceNode),
+      targetVisual: getNodeVisual(target),
       color: stage.color,
       speed: 0.5,
       index: i,
@@ -275,6 +348,8 @@ export default function AttentionFlow() {
             <FlowLine
               startPos={conn.startPos}
               endPos={conn.endPos}
+              sourceVisual={conn.sourceVisual}
+              targetVisual={conn.targetVisual}
               color={conn.color}
               speed={conn.speed}
               index={conn.index}
@@ -287,6 +362,8 @@ export default function AttentionFlow() {
             <FlowParticles
               startPos={conn.startPos}
               endPos={conn.endPos}
+              sourceVisual={conn.sourceVisual}
+              targetVisual={conn.targetVisual}
               color={conn.color}
               speed={conn.speed}
               index={conn.index}
@@ -303,6 +380,8 @@ export default function AttentionFlow() {
               <FlowLine
                 startPos={line.startPos}
                 endPos={line.endPos}
+                sourceVisual={line.sourceVisual}
+                targetVisual={line.targetVisual}
                 color={line.color}
                 speed={line.speed}
                 index={line.index}
@@ -315,6 +394,8 @@ export default function AttentionFlow() {
               <FlowParticles
                 startPos={line.startPos}
                 endPos={line.endPos}
+                sourceVisual={line.sourceVisual}
+                targetVisual={line.targetVisual}
                 color={line.color}
                 speed={line.speed}
                 index={line.index}

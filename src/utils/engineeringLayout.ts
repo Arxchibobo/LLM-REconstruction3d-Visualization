@@ -245,7 +245,7 @@ function layoutLayerNodes(
 
 /**
  * 布局资源层节点 (具体实例)
- * 资源层节点数量最多,需要按类型分组布局
+ * 使用加权扇区分配 + 多环螺旋分布，避免节点重叠
  */
 function layoutResourceNodes(
   nodes: KnowledgeNode[],
@@ -256,75 +256,92 @@ function layoutResourceNodes(
 ): void {
   if (nodes.length === 0) return;
 
-  // 按类型分组（包含新类型 hook, rule, agent, memory）
-  const skillNodes = nodes.filter(n => n.type === 'skill');
-  const mcpNodes = nodes.filter(n => n.type === 'mcp');
-  const pluginNodes = nodes.filter(n => n.type === 'plugin');
-  const hookNodes = nodes.filter(n => n.type === 'hook');
-  const ruleNodes = nodes.filter(n => n.type === 'rule');
-  const agentNodes = nodes.filter(n => n.type === 'agent');
-  const memoryNodes = nodes.filter(n => n.type === 'memory');
-  const documentNodes = nodes.filter(n => n.type === 'document');
+  // 按类型分组
+  const groups: { type: string; nodes: KnowledgeNode[] }[] = [
+    { type: 'skill', nodes: nodes.filter(n => n.type === 'skill') },
+    { type: 'mcp', nodes: nodes.filter(n => n.type === 'mcp') },
+    { type: 'plugin', nodes: nodes.filter(n => n.type === 'plugin') },
+    { type: 'hook', nodes: nodes.filter(n => n.type === 'hook') },
+    { type: 'rule', nodes: nodes.filter(n => n.type === 'rule') },
+    { type: 'agent', nodes: nodes.filter(n => n.type === 'agent') },
+    { type: 'memory', nodes: nodes.filter(n => n.type === 'memory') },
+    { type: 'document', nodes: nodes.filter(n => n.type === 'document') },
+  ];
 
-  // 计算每个组的角度范围（8组）
-  const totalGroups = 8;
-  const anglePerGroup = (Math.PI * 2) / totalGroups;
+  // 过滤空组
+  const nonEmpty = groups.filter(g => g.nodes.length > 0);
+  if (nonEmpty.length === 0) return;
 
-  // Skills: 0 - 45度
-  layoutGroupInArc(skillNodes, radius, baseHeight, 0, anglePerGroup, config, positions);
+  // 按比例分配角度：节点越多的组获得更大的扇区角度
+  // 每个组至少有一个最小角度保证可见性
+  const totalNodes = nonEmpty.reduce((sum, g) => sum + g.nodes.length, 0);
+  const MIN_SECTOR = Math.PI * 2 * 0.03; // 最小扇区 ~5.4°
+  const GAP = 0.04; // 组间间隙弧度
+  const totalGap = GAP * nonEmpty.length;
+  const availableAngle = Math.PI * 2 - totalGap;
+  const minReserved = MIN_SECTOR * nonEmpty.length;
+  const distributableAngle = Math.max(0, availableAngle - minReserved);
 
-  // MCPs: 45 - 90度
-  layoutGroupInArc(mcpNodes, radius, baseHeight, anglePerGroup, anglePerGroup * 2, config, positions);
+  let currentAngle = 0;
 
-  // Plugins: 90 - 135度
-  layoutGroupInArc(pluginNodes, radius, baseHeight, anglePerGroup * 2, anglePerGroup * 3, config, positions);
+  for (const group of nonEmpty) {
+    const proportion = group.nodes.length / totalNodes;
+    const sectorAngle = MIN_SECTOR + distributableAngle * proportion;
+    const startAngle = currentAngle;
+    const endAngle = currentAngle + sectorAngle;
 
-  // Hooks: 135 - 180度
-  layoutGroupInArc(hookNodes, radius, baseHeight, anglePerGroup * 3, anglePerGroup * 4, config, positions);
+    layoutGroupMultiRing(group.nodes, radius, startAngle, endAngle, positions);
 
-  // Rules: 180 - 225度
-  layoutGroupInArc(ruleNodes, radius, baseHeight, anglePerGroup * 4, anglePerGroup * 5, config, positions);
-
-  // Agents: 225 - 270度
-  layoutGroupInArc(agentNodes, radius, baseHeight, anglePerGroup * 5, anglePerGroup * 6, config, positions);
-
-  // Memory: 270 - 315度
-  layoutGroupInArc(memoryNodes, radius, baseHeight, anglePerGroup * 6, anglePerGroup * 7, config, positions);
-
-  // Documents: 315 - 360度
-  layoutGroupInArc(documentNodes, radius, baseHeight, anglePerGroup * 7, anglePerGroup * 8, config, positions);
+    currentAngle = endAngle + GAP;
+  }
 }
 
 /**
- * 在弧形区域内布局一组节点
+ * 多环螺旋布局：在扇区内分配到多个半径环上
+ * 确保节点间有足够间距不会重叠
  */
-function layoutGroupInArc(
+function layoutGroupMultiRing(
   nodes: KnowledgeNode[],
-  radius: number,
-  baseHeight: number,
+  baseRadius: number,
   startAngle: number,
   endAngle: number,
-  config: EngineeringLayoutConfig,
   positions: Map<string, [number, number, number]>
 ): void {
   const count = nodes.length;
   if (count === 0) return;
 
-  const angleRange = endAngle - startAngle;
+  const sectorAngle = endAngle - startAngle;
+  const NODE_SPACING = 3.0; // 节点间最小弧长间距
+
+  // 计算单环能容纳的节点数
+  const arcLength = baseRadius * sectorAngle;
+  const nodesPerRing = Math.max(1, Math.floor(arcLength / NODE_SPACING));
+  const ringCount = Math.ceil(count / nodesPerRing);
+
+  // 环间距和 Y 偏移
+  const RING_RADIAL_GAP = 3.5; // 环间半径差
+  const RING_Y_OFFSET = 1.2; // 环间高度差（交替正负）
 
   nodes.forEach((node, index) => {
-    // 在分配的角度范围内均匀分布
-    const angle = startAngle + (index / Math.max(count - 1, 1)) * angleRange;
+    const ringIndex = Math.floor(index / nodesPerRing);
+    const posInRing = index % nodesPerRing;
+    const countInThisRing = Math.min(nodesPerRing, count - ringIndex * nodesPerRing);
 
-    // 使用基于索引的确定性变化，避免 Math.random() 导致重渲染时节点跳动
-    const radiusVariation = (((index * 7 + 3) % 11) / 11 - 0.5) * 2;
-    const r = radius + radiusVariation;
+    // 角度：在扇区内均匀分布，内收一点避免贴边
+    const padding = sectorAngle * 0.05;
+    const usableAngle = sectorAngle - padding * 2;
+    const angle = countInThisRing <= 1
+      ? startAngle + sectorAngle * 0.5
+      : startAngle + padding + (posInRing / (countInThisRing - 1)) * usableAngle;
+
+    // 半径：每一环向外扩展
+    const r = baseRadius + ringIndex * RING_RADIAL_GAP;
+
+    // Y：交替高度，奇数环上移偶数环下移
+    const y = ringIndex === 0 ? 0 : ((ringIndex % 2 === 1 ? 1 : -1) * Math.ceil(ringIndex / 2) * RING_Y_OFFSET);
 
     const x = Math.cos(angle) * r;
     const z = Math.sin(angle) * r;
-
-    // 🔄 Y坐标固定为0：全部落在水平面上，提高3D空间可读性
-    const y = 0;
 
     positions.set(node.id, [x, y, z]);
   });
