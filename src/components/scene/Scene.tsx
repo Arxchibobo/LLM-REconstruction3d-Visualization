@@ -1,9 +1,11 @@
 'use client';
 
-import { Canvas } from '@react-three/fiber';
+import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
-import { EffectComposer, Bloom } from '@react-three/postprocessing';
-import { Suspense } from 'react';
+import { EffectComposer, Bloom, ToneMapping } from '@react-three/postprocessing';
+import { ToneMappingMode } from 'postprocessing';
+import { Suspense, useRef } from 'react';
+import { DoubleSide, HalfFloatType } from 'three';
 import KnowledgeGraph from './KnowledgeGraph';
 import SpaceBackground from './SpaceBackground';
 import AttentionFlow from './AttentionFlow';
@@ -13,11 +15,45 @@ import CameraController from './CameraController';
 import LoadingScreen from '../ui/LoadingScreen';
 import { useKnowledgeStore } from '@/stores/useKnowledgeStore';
 
+/**
+ * FadeOverlay - Full-screen fade plane for mode transition animation
+ * Renders at renderOrder 999 to be on top of everything
+ * Opacity lerps 0→1 (fade out) when transitioning, 1→0 (fade in) when done
+ */
+function FadeOverlay() {
+  const meshRef = useRef<THREE.Mesh>(null);
+  const { isTransitioning } = useKnowledgeStore();
+  const opacityRef = useRef(0);
+
+  useFrame((_, delta) => {
+    if (!meshRef.current) return;
+    const material = meshRef.current.material as THREE.MeshBasicMaterial;
+
+    const target = isTransitioning ? 1 : 0;
+    const speed = 4; // lerp speed
+    opacityRef.current += (target - opacityRef.current) * Math.min(speed * delta, 1);
+
+    material.opacity = opacityRef.current;
+    meshRef.current.visible = opacityRef.current > 0.01;
+  });
+
+  return (
+    <mesh ref={meshRef} renderOrder={999} visible={false}>
+      <planeGeometry args={[200, 200]} />
+      <meshBasicMaterial
+        color="#030510"
+        transparent
+        opacity={0}
+        side={DoubleSide}
+        depthTest={false}
+        depthWrite={false}
+      />
+    </mesh>
+  );
+}
+
 export default function Scene() {
   const { loading, nodes, setSelectedNode, setHoveredNode, selectedNode } = useKnowledgeStore();
-
-  // 🔒 Hook Layer 专注模式
-  const isHookLayerFocused = selectedNode?.id === 'layer-hooks';
 
   // 🎯 点击空白处取消选中
   const handlePointerMissed = () => {
@@ -74,9 +110,10 @@ export default function Scene() {
 
       {/* 轨道控制器 */}
       <OrbitControls
+        makeDefault
         enableDamping
         dampingFactor={0.05}
-        minDistance={5}
+        minDistance={3}
         maxDistance={100}
         maxPolarAngle={Math.PI / 2}
       />
@@ -86,20 +123,24 @@ export default function Scene() {
         <KnowledgeGraph />
       </Suspense>
 
-      {/* Claude 注意力流可视化 - Hook Layer 模式下隐藏 */}
-      {!isHookLayerFocused && <AttentionFlow />}
+      {/* Claude 注意力流可视化 */}
+      <AttentionFlow />
 
-      {/* 实时活动叠加层 - Hook Layer 模式下隐藏 */}
-      {!isHookLayerFocused && <LiveActivityOverlay />}
+      {/* 实时活动叠加层 */}
+      <LiveActivityOverlay />
 
-      {/* 后处理效果 - Vaporwave 辉光 */}
-      <EffectComposer>
+      {/* 模式切换过渡遮罩 */}
+      <FadeOverlay />
+
+      {/* Post-processing with HalfFloatType to preserve color space */}
+      <EffectComposer frameBufferType={HalfFloatType} multisampling={0}>
         <Bloom
-          intensity={0.8}
-          luminanceThreshold={0.7}
-          luminanceSmoothing={0.9}
+          intensity={0.6}
+          luminanceThreshold={0.8}
+          luminanceSmoothing={0.3}
           mipmapBlur
         />
+        <ToneMapping mode={ToneMappingMode.REINHARD} />
       </EffectComposer>
     </Canvas>
   );

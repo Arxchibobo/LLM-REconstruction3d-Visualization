@@ -6,6 +6,7 @@ import ModernTopBar from '@/components/ui-v3/ModernTopBar';
 import ModernLeftPanel from '@/components/ui-v3/ModernLeftPanel';
 import ModernRightPanel from '@/components/ui-v3/ModernRightPanel';
 import ModernStatusBar from '@/components/ui-v3/ModernStatusBar';
+import Minimap from '@/components/ui-v3/Minimap';
 import { useKnowledgeStore } from '@/stores/useKnowledgeStore';
 
 // 动态导入 3D 场景组件（避免 SSR 问题）
@@ -57,6 +58,9 @@ export default function V3HomePage() {
 
       {/* 底部状态栏 */}
       <ModernStatusBar />
+
+      {/* 小地图 */}
+      <Minimap />
     </div>
   );
 }

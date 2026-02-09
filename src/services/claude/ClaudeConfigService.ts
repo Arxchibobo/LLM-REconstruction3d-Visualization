@@ -145,49 +145,7 @@ export class ClaudeConfigService {
     });
 
     // ============================================
-    // 2. 核心层 - Hooks（拦截所有调用）
-    // ============================================
-    const hookRadius = 6;
-    nodes.push({
-      id: 'layer-hooks',
-      type: 'category',
-      title: 'Hooks Layer',
-      description: '钩子层 - 拦截和处理所有工具调用',
-      filePath: '',
-      content: `${this.getHooks().length} 个活动钩子`,
-      tags: ['layer', 'hooks'],
-      links: [],
-      position: this.calculateSphericalPosition(hookRadius, 0, Math.PI / 2),
-      metadata: {
-        size: 0,
-        created: new Date(),
-        modified: new Date(),
-        accessed: new Date(),
-        accessCount: 0,
-        importance: 0.95,
-      },
-      visual: {
-        color: '#FF6B6B',
-        size: 1.8,
-        shape: 'octahedron',
-        glow: true,
-        icon: 'hook',
-      },
-    });
-
-    connections.push({
-      id: this.createUniqueConnectionId('center', 'layer-hooks'),
-      source: 'center',
-      target: 'layer-hooks',
-      type: 'dependency',
-      strength: 1.0,
-      label: '拦截调用',
-      metadata: { created: new Date(), manual: false },
-      visual: { color: '#FF6B6B', width: 3, dashed: false, animated: true, isSkeleton: true },
-    });
-
-    // ============================================
-    // 3. 工具层 - Categories
+    // 2. 工具层 - Categories (直接连接到中心)
     // ============================================
     const categories = [
       { id: 'category-skills', title: 'Skills', color: '#10B981', angle: 0, icon: 'zap' },
@@ -231,13 +189,13 @@ export class ClaudeConfigService {
         },
       });
 
-      // 从 Hooks Layer 到 Category 的连接
+      // 从中心到 Category 的直接连接
       connections.push({
-        id: this.createUniqueConnectionId('layer-hooks', cat.id),
-        source: 'layer-hooks',
+        id: this.createUniqueConnectionId('center', cat.id),
+        source: 'center',
         target: cat.id,
         type: 'dependency',
-        strength: 0.8,
+        strength: 0.9,
         label: '路由',
         metadata: { created: new Date(), manual: false },
         visual: { color: '#FF00FF', width: 1.5, dashed: true, animated: false, isSkeleton: true },
@@ -255,7 +213,7 @@ export class ClaudeConfigService {
       this.getSkills(),
       'category-skills', 'skill',
       0, Math.PI * 2 / 7,
-      itemRadius, '#10B981', 'torus'
+      itemRadius, '#10B981', 'sphere'
     );
 
     // MCPs
@@ -264,7 +222,7 @@ export class ClaudeConfigService {
       this.getMCPs(),
       'category-mcp', 'mcp',
       Math.PI * 2 / 7, Math.PI * 2 / 7,
-      itemRadius, '#06B6D4', 'cylinder'
+      itemRadius, '#06B6D4', 'sphere'
     );
 
     // Plugins
@@ -273,7 +231,7 @@ export class ClaudeConfigService {
       this.getPlugins(),
       'category-plugins', 'plugin',
       Math.PI * 4 / 7, Math.PI * 2 / 7,
-      itemRadius, '#F59E0B', 'dodecahedron'
+      itemRadius, '#F59E0B', 'sphere'
     );
 
     // Rules
@@ -282,7 +240,7 @@ export class ClaudeConfigService {
       this.getRules(),
       'category-rules', 'rule',
       Math.PI * 6 / 7, Math.PI * 2 / 7,
-      itemRadius, '#8B5CF6', 'box'
+      itemRadius, '#8B5CF6', 'sphere'
     );
 
     // Agents
@@ -291,7 +249,7 @@ export class ClaudeConfigService {
       this.getAgents(),
       'category-agents', 'agent',
       Math.PI * 8 / 7, Math.PI * 2 / 7,
-      itemRadius, '#EC4899', 'icosahedron'
+      itemRadius, '#EC4899', 'sphere'
     );
 
     // Memory
@@ -309,7 +267,7 @@ export class ClaudeConfigService {
       this.getHooks(),
       'category-hooks', 'hook',
       Math.PI * 12 / 7, Math.PI * 2 / 7,
-      itemRadius, '#EF4444', 'cone'
+      itemRadius, '#EF4444', 'sphere'
     );
 
 

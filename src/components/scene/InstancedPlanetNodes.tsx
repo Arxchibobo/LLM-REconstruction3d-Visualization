@@ -1,175 +1,222 @@
 'use client';
 
 /**
- * InstancedPlanetNodes - 使用InstancedMesh批量渲染相同类型的节点
- * 性能优化: 将相同类型/形状的节点合并为单个InstancedMesh
- * 适用于节点数量 >50 的场景
+ * InstancedPlanetNodes - Two instancedMesh draw calls for all resource nodes
+ * 1. Planet bodies: sphereGeometry with standard material
+ * 2. Atmospheres: slightly larger sphereGeometry with BackSide material
+ * Supports raycasting via onClick + event.instanceId for hover/click
  */
 
-import { useRef, useMemo, useEffect } from 'react';
-import { InstancedMesh, Object3D, Color, Matrix4 } from 'three';
-import { useFrame } from '@react-three/fiber';
+import { useRef, useMemo, useEffect, useCallback } from 'react';
+import { InstancedMesh, Object3D, Color, BackSide } from 'three';
+import { useFrame, ThreeEvent } from '@react-three/fiber';
 import type { KnowledgeNode } from '@/types/knowledge';
 import { getColorByType } from '@/utils/colors';
+import { useKnowledgeStore } from '@/stores/useKnowledgeStore';
 
 interface InstancedPlanetNodesProps {
   nodes: KnowledgeNode[];
-  hoveredNodeId?: string | null;
-  selectedNodeId?: string | null;
 }
 
-// 辅助对象用于计算变换矩阵
 const tempObject = new Object3D();
 const tempColor = new Color();
 
-export default function InstancedPlanetNodes({
-  nodes,
-  hoveredNodeId,
-  selectedNodeId
-}: InstancedPlanetNodesProps) {
-  const meshRef = useRef<InstancedMesh>(null);
+export default function InstancedPlanetNodes({ nodes }: InstancedPlanetNodesProps) {
+  const planetRef = useRef<InstancedMesh>(null);
+  const atmosphereRef = useRef<InstancedMesh>(null);
+  const { hoveredNode, selectedNode, setSelectedNode, setHoveredNode, connections } = useKnowledgeStore();
 
-  // 按类型分组节点
-  const groupedNodes = useMemo(() => {
-    const groups: Record<string, KnowledgeNode[]> = {};
-
-    nodes.forEach(node => {
-      const key = `${node.type}-${node.visual?.shape || 'sphere'}`;
-      if (!groups[key]) {
-        groups[key] = [];
-      }
-      groups[key].push(node);
+  // Build index map: instanceId → node
+  const nodeIndexMap = useMemo(() => {
+    const map = new Map<number, KnowledgeNode>();
+    nodes.forEach((node, index) => {
+      map.set(index, node);
     });
-
-    return groups;
+    return map;
   }, [nodes]);
 
-  // 为每个节点组创建实例化数据
-  const instanceData = useMemo(() => {
-    const data: Array<{
-      type: string;
-      shape: string;
-      nodes: KnowledgeNode[];
-      count: number;
-      baseSize: number;
-      baseColor: string;
-    }> = [];
-
-    Object.entries(groupedNodes).forEach(([key, groupNodes]) => {
-      const [type, shape] = key.split('-');
-      const colorScheme = getColorByType(type);
-
-      // 确定基础大小
-      let baseSize = 0.8;
-      if (type === 'category') baseSize = 1.8;
-      else if (type === 'skill' || type === 'mcp') baseSize = 1.2;
-
-      data.push({
-        type,
-        shape,
-        nodes: groupNodes,
-        count: groupNodes.length,
-        baseSize,
-        baseColor: colorScheme.primary
-      });
+  // Determine which nodes are "related" to selection
+  const relatedNodeIds = useMemo(() => {
+    if (!selectedNode) return new Set<string>();
+    const ids = new Set<string>();
+    ids.add(selectedNode.id);
+    connections.forEach(conn => {
+      if (conn.source === selectedNode.id) ids.add(conn.target);
+      if (conn.target === selectedNode.id) ids.add(conn.source);
     });
+    return ids;
+  }, [selectedNode, connections]);
 
-    return data;
-  }, [groupedNodes]);
-
-  // 更新实例化矩阵
+  // Update instance transforms & colors
   useEffect(() => {
-    if (!meshRef.current) return;
+    if (!planetRef.current) return;
 
-    instanceData.forEach((group, groupIndex) => {
-      group.nodes.forEach((node, index) => {
-        const instanceId = index;
+    nodes.forEach((node, index) => {
+      const isHovered = node.id === hoveredNode?.id;
+      const isSelected = node.id === selectedNode?.id;
+      const isAdapter = node.type === 'adapter';
+      const baseSize = node.visual?.size || 0.8;
+      const effectiveSize = isAdapter ? baseSize * 1.2 : baseSize;
+      const scale = (isHovered || isSelected) ? effectiveSize * 1.25 : effectiveSize;
 
-        // 设置位置和缩放
-        tempObject.position.set(...node.position);
+      // Planet body
+      tempObject.position.set(...node.position);
+      tempObject.scale.setScalar(scale);
+      tempObject.updateMatrix();
+      planetRef.current!.setMatrixAt(index, tempObject.matrix);
 
-        // hover/selected 时放大
-        const isHovered = node.id === hoveredNodeId;
-        const isSelected = node.id === selectedNodeId;
-        const scale = (isHovered || isSelected) ? 1.15 : 1.0;
-        tempObject.scale.setScalar(group.baseSize * scale);
-
+      // Atmosphere (slightly larger)
+      if (atmosphereRef.current) {
+        tempObject.scale.setScalar(scale * 1.25);
         tempObject.updateMatrix();
+        atmosphereRef.current.setMatrixAt(index, tempObject.matrix);
+      }
 
-        // 更新矩阵
-        meshRef.current!.setMatrixAt(instanceId, tempObject.matrix);
+      // Color for planet body
+      const colorScheme = getColorByType(node.type);
+      const isDimmed = selectedNode && !relatedNodeIds.has(node.id);
 
-        // 设置颜色
-        const isDimmed = hoveredNodeId !== null && !isHovered && !isSelected;
-        const opacity = isDimmed ? 0.3 : 0.7;
-        tempColor.set(group.baseColor);
-        tempColor.multiplyScalar(opacity);
-        meshRef.current!.setColorAt(instanceId, tempColor);
-      });
+      tempColor.set(colorScheme.primary);
+      if (isDimmed) {
+        tempColor.multiplyScalar(0.15);
+      } else if (isHovered || isSelected) {
+        tempColor.multiplyScalar(1.3);
+      } else {
+        tempColor.multiplyScalar(1.0);
+      }
+      planetRef.current!.setColorAt(index, tempColor);
+
+      // Color for atmosphere
+      if (atmosphereRef.current) {
+        tempColor.set(colorScheme.primary);
+        if (isDimmed) {
+          tempColor.multiplyScalar(0.02);
+        } else {
+          tempColor.multiplyScalar(0.4);
+        }
+        atmosphereRef.current.setColorAt(index, tempColor);
+      }
     });
 
-    meshRef.current.instanceMatrix.needsUpdate = true;
-    if (meshRef.current.instanceColor) {
-      meshRef.current.instanceColor.needsUpdate = true;
+    planetRef.current.instanceMatrix.needsUpdate = true;
+    if (planetRef.current.instanceColor) {
+      planetRef.current.instanceColor.needsUpdate = true;
     }
-  }, [instanceData, hoveredNodeId, selectedNodeId]);
 
-  // 动画循环 - 仅更新悬浮效果
+    if (atmosphereRef.current) {
+      atmosphereRef.current.instanceMatrix.needsUpdate = true;
+      if (atmosphereRef.current.instanceColor) {
+        atmosphereRef.current.instanceColor.needsUpdate = true;
+      }
+    }
+  }, [nodes, hoveredNode, selectedNode, relatedNodeIds]);
+
+  // Floating animation
   useFrame((state) => {
-    if (!meshRef.current) return;
+    if (!planetRef.current) return;
 
     const time = state.clock.elapsedTime;
 
-    instanceData.forEach((group) => {
-      group.nodes.forEach((node, index) => {
-        const isSelected = node.id === selectedNodeId;
-        if (isSelected) return; // 选中的节点不悬浮
+    nodes.forEach((node, index) => {
+      const isSelected = node.id === selectedNode?.id;
+      if (isSelected) return;
 
-        // 轻微悬浮
-        tempObject.position.set(
-          node.position[0],
-          node.position[1] + Math.sin(time * 0.5 + node.position[0]) * 0.05,
-          node.position[2]
-        );
+      const isAdapter = node.type === 'adapter';
+      const baseSize = node.visual?.size || 0.8;
+      const effectiveSize = isAdapter ? baseSize * 1.2 : baseSize;
 
-        tempObject.scale.setScalar(group.baseSize);
+      tempObject.position.set(
+        node.position[0],
+        node.position[1] + Math.sin(time * 0.5 + node.position[0]) * 0.05,
+        node.position[2]
+      );
+      tempObject.scale.setScalar(effectiveSize);
+      tempObject.updateMatrix();
+
+      planetRef.current!.setMatrixAt(index, tempObject.matrix);
+
+      // Update atmosphere position too
+      if (atmosphereRef.current) {
+        tempObject.scale.setScalar(effectiveSize * 1.25);
         tempObject.updateMatrix();
-
-        meshRef.current!.setMatrixAt(index, tempObject.matrix);
-      });
+        atmosphereRef.current.setMatrixAt(index, tempObject.matrix);
+      }
     });
 
-    meshRef.current.instanceMatrix.needsUpdate = true;
+    planetRef.current.instanceMatrix.needsUpdate = true;
+    if (atmosphereRef.current) {
+      atmosphereRef.current.instanceMatrix.needsUpdate = true;
+    }
   });
 
-  // 如果没有节点，不渲染
-  if (instanceData.length === 0 || nodes.length === 0) {
-    return null;
-  }
+  // Click handler via instanceId
+  const handleClick = useCallback((event: ThreeEvent<MouseEvent>) => {
+    event.stopPropagation();
+    const instanceId = event.instanceId;
+    if (instanceId === undefined) return;
+    const node = nodeIndexMap.get(instanceId);
+    if (node) {
+      const isAlreadySelected = selectedNode?.id === node.id;
+      setSelectedNode(isAlreadySelected ? null : node);
+    }
+  }, [nodeIndexMap, selectedNode, setSelectedNode]);
 
-  // 使用第一组的配置作为默认 (简化版本,实际应该为每个组创建单独的InstancedMesh)
-  const firstGroup = instanceData[0];
+  // Hover handler
+  const handlePointerOver = useCallback((event: ThreeEvent<PointerEvent>) => {
+    event.stopPropagation();
+    const instanceId = event.instanceId;
+    if (instanceId === undefined) return;
+    const node = nodeIndexMap.get(instanceId);
+    if (node) {
+      setHoveredNode(node);
+      document.body.style.cursor = 'pointer';
+    }
+  }, [nodeIndexMap, setHoveredNode]);
+
+  const handlePointerOut = useCallback((event: ThreeEvent<PointerEvent>) => {
+    event.stopPropagation();
+    setHoveredNode(null);
+    document.body.style.cursor = 'auto';
+  }, [setHoveredNode]);
+
+  if (nodes.length === 0) return null;
 
   return (
-    <instancedMesh
-      ref={meshRef}
-      args={[undefined, undefined, nodes.length]}
-      frustumCulled={false}
-    >
-      {/* 根据形状选择几何体 */}
-      {firstGroup.shape === 'sphere' && <sphereGeometry args={[1, 32, 32]} />}
-      {firstGroup.shape === 'cube' && <boxGeometry args={[1.5, 1.5, 1.5]} />}
-      {firstGroup.shape === 'cylinder' && <cylinderGeometry args={[1, 1, 2, 32]} />}
-      {firstGroup.shape === 'octahedron' && <octahedronGeometry args={[1, 0]} />}
-      {firstGroup.shape === 'torus' && <torusGeometry args={[1, 0.4, 16, 100]} />}
-      {firstGroup.shape === 'dodecahedron' && <dodecahedronGeometry args={[1, 0]} />}
+    <>
+      {/* Planet bodies - single sphere instancedMesh */}
+      <instancedMesh
+        ref={planetRef}
+        args={[undefined, undefined, nodes.length]}
+        frustumCulled={false}
+        onClick={handleClick}
+        onPointerOver={handlePointerOver}
+        onPointerOut={handlePointerOut}
+      >
+        <sphereGeometry args={[1, 24, 24]} />
+        <meshStandardMaterial
+          roughness={0.4}
+          metalness={0.2}
+          emissive="#222244"
+          emissiveIntensity={0.2}
+          transparent
+          opacity={0.9}
+        />
+      </instancedMesh>
 
-      {/* 标准材质 */}
-      <meshStandardMaterial
-        roughness={0.3}
-        metalness={0.7}
-        transparent
-      />
-    </instancedMesh>
+      {/* Atmospheres - BackSide rendering for glow effect */}
+      <instancedMesh
+        ref={atmosphereRef}
+        args={[undefined, undefined, nodes.length]}
+        frustumCulled={false}
+      >
+        <sphereGeometry args={[1, 16, 16]} />
+        <meshBasicMaterial
+          transparent
+          opacity={0.12}
+          side={BackSide}
+          depthWrite={false}
+        />
+      </instancedMesh>
+    </>
   );
 }

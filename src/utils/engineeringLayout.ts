@@ -28,8 +28,8 @@ const DEFAULT_CONFIG: EngineeringLayoutConfig = {
   coreRadius: 8,
   toolRadius: 15,
   resourceRadius: 25,
-  verticalSpread: 0,   // 🔄 改为0：全部落在水平面上，提高可读性
-  layerHeight: 0,      // 🔄 改为0：不设层高差，保持水平
+  verticalSpread: 0.5,   // Y轴波动幅度
+  layerHeight: 3,        // 层间高度差
 };
 
 /**
@@ -66,12 +66,8 @@ export function determineNodeLayer(node: KnowledgeNode): NodeLayer {
     return 'center';
   }
 
-  // 核心层：Adapters 和 Hooks Layer（拦截层）
+  // 核心层：Adapters
   if (type === 'adapter' || title.includes('adapter')) {
-    return 'core';
-  }
-  // layer-hooks 是核心拦截层
-  if (id === 'layer-hooks' || title.includes('hooks layer')) {
     return 'core';
   }
 
@@ -236,8 +232,8 @@ function layoutLayerNodes(
     const x = Math.cos(angle) * radius;
     const z = Math.sin(angle) * radius;
 
-    // 🔄 Y坐标固定为0：全部落在水平面上，提高3D空间可读性
-    const y = 0;
+    // Y坐标：基础高度 + 正弦波动，形成真实3D层次
+    const y = baseHeight + Math.sin(angle * 2) * config.verticalSpread;
 
     positions.set(node.id, [x, y, z]);
   });
@@ -290,7 +286,7 @@ function layoutResourceNodes(
     const startAngle = currentAngle;
     const endAngle = currentAngle + sectorAngle;
 
-    layoutGroupMultiRing(group.nodes, radius, startAngle, endAngle, positions);
+    layoutGroupMultiRing(group.nodes, radius, startAngle, endAngle, positions, baseHeight);
 
     currentAngle = endAngle + GAP;
   }
@@ -305,7 +301,8 @@ function layoutGroupMultiRing(
   baseRadius: number,
   startAngle: number,
   endAngle: number,
-  positions: Map<string, [number, number, number]>
+  positions: Map<string, [number, number, number]>,
+  baseHeight: number = 0
 ): void {
   const count = nodes.length;
   if (count === 0) return;
@@ -337,8 +334,8 @@ function layoutGroupMultiRing(
     // 半径：每一环向外扩展
     const r = baseRadius + ringIndex * RING_RADIAL_GAP;
 
-    // Y：交替高度，奇数环上移偶数环下移
-    const y = ringIndex === 0 ? 0 : ((ringIndex % 2 === 1 ? 1 : -1) * Math.ceil(ringIndex / 2) * RING_Y_OFFSET);
+    // Y：基础高度 + 交替偏移，奇数环上移偶数环下移
+    const y = -baseHeight + (ringIndex === 0 ? 0 : ((ringIndex % 2 === 1 ? 1 : -1) * Math.ceil(ringIndex / 2) * RING_Y_OFFSET));
 
     const x = Math.cos(angle) * r;
     const z = Math.sin(angle) * r;
@@ -468,7 +465,21 @@ export function createEngineeringConnections(
   // 找到工具层节点 (Categories)
   const toolNodes = nodes.filter(n => determineNodeLayer(n) === 'tool');
 
-  // 1. Claude → Adapters (invoke - 青色实线)
+  // Find resource nodes
+  const resourceNodes = nodes.filter(n => determineNodeLayer(n) === 'resource');
+
+  // Category ID mapping for resource types
+  const categoryMap: Record<string, string> = {
+    skill: 'category-skills',
+    mcp: 'category-mcp',
+    plugin: 'category-plugins',
+    hook: 'category-hooks',
+    rule: 'category-rules',
+    agent: 'category-agents',
+    memory: 'category-memory',
+  };
+
+  // 1. Claude → Adapters (invoke - 青色实线，骨架)
   for (const adapter of coreNodes) {
     connections.push({
       id: `${centerNode.id}->${adapter.id}`,
@@ -482,16 +493,16 @@ export function createEngineeringConnections(
         manual: false,
       },
       visual: {
-        color: '#00FFFF',  // 青色
-        width: 2,
+        color: '#00FFFF',
+        width: 3,
         dashed: false,
         animated: true,
+        isSkeleton: true,
       },
     });
   }
 
-  // 2. Core → Categories (fetch - 品红虚线)
-  // layer-hooks 连接到所有 category
+  // 2. Core → Categories (route - 品红虚线，骨架)
   for (const coreNode of coreNodes) {
     for (const category of toolNodes) {
       connections.push({
@@ -506,18 +517,41 @@ export function createEngineeringConnections(
           manual: false,
         },
         visual: {
-          color: '#FF00FF',  // 品红
+          color: '#FF00FF',
           width: 1.5,
           dashed: true,
           animated: false,
+          isSkeleton: true,
         },
       });
     }
   }
 
-  // 3. Categories → Resources (provide - 橙色细线)
-  // 这部分连接较多,只在hover时显示
-  // 这里先不创建,留到后续Phase 5实现
+  // 3. Categories → Resources (provide - 橙色细线，hover only)
+  for (const resource of resourceNodes) {
+    const categoryId = categoryMap[resource.type];
+    if (categoryId) {
+      connections.push({
+        id: `${categoryId}->${resource.id}`,
+        source: categoryId,
+        target: resource.id,
+        type: 'contains',
+        strength: 0.3,
+        label: '提供',
+        metadata: {
+          created: new Date(),
+          manual: false,
+        },
+        visual: {
+          color: '#FFA500',
+          width: 0.5,
+          dashed: false,
+          animated: false,
+          isSkeleton: false,
+        },
+      });
+    }
+  }
 
   return connections;
 }

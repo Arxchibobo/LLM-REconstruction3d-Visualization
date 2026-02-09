@@ -1,280 +1,369 @@
 'use client';
 
-import { useRef, useMemo, useState } from 'react';
+import { useRef, useState, useCallback, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Group, Points, BufferGeometry, PointsMaterial, BufferAttribute, AdditiveBlending } from 'three';
+import { Group, Mesh, AdditiveBlending, BackSide, DoubleSide } from 'three';
 import { useKnowledgeStore } from '@/stores/useKnowledgeStore';
 import { useSpring, animated } from '@react-spring/three';
 
+/**
+ * CenterRobot - Visually impressive robot at the origin representing Claude Code.
+ * Features: chrome head, glass visor, energy core, holographic rings,
+ * orbiting data particles, floating shield hexagons, and signal pulses.
+ */
 export default function CenterRobot() {
   const robotRef = useRef<Group>(null);
-  const outerRingRef = useRef<Group>(null);
-  const middleRingRef = useRef<Group>(null);
-  const particlesRef = useRef<Points>(null);
+  const ring1Ref = useRef<Mesh>(null);
+  const ring2Ref = useRef<Mesh>(null);
+  const orbitGroup1Ref = useRef<Group>(null);
+  const orbitGroup2Ref = useRef<Group>(null);
+  const orbitGroup3Ref = useRef<Group>(null);
+  const coreRef = useRef<Mesh>(null);
+  const shieldGroupRef = useRef<Group>(null);
+  const pulseRefs = useRef<Mesh[]>([]);
+  const pulseInnerRefs = useRef<Mesh[]>([]);
 
-  // 获取 store 中的节点和选择函数
-  const { nodes, setSelectedNode } = useKnowledgeStore();
-
-  // 🎭 点击反馈状态
+  const { nodes, setSelectedNode, signalPulseActive } = useKnowledgeStore();
   const [clicked, setClicked] = useState(false);
+  const [pulses, setPulses] = useState<number[]>([]);
+  const pulseIdRef = useRef(0);
 
-  // 🌊 点击脉冲动画
   const pulseSpring = useSpring({
     scale: clicked ? 1.3 : 1.0,
-    emissiveIntensity: clicked ? 1.5 : 0.5,
     config: { tension: 200, friction: 20 },
-    onRest: () => setClicked(false), // 动画结束后重置
+    onRest: () => setClicked(false),
   });
 
-  // 🎯 点击处理：选择中心的 Claude 节点
-  const handleClick = (e: any) => {
+  const handleClick = useCallback((e: any) => {
     e.stopPropagation();
-    // 触发点击动画
     setClicked(true);
-
-    // 找到中心节点（id 为 'center' 的 claude 类型节点）
     const centerNode = nodes.find((n) => n.id === 'center');
     if (centerNode) {
       setSelectedNode(centerNode);
-    } else {
     }
-  };
+  }, [nodes, setSelectedNode]);
 
-  // 🖱️ Hover 处理
-  const handlePointerOver = () => {
+  const handlePointerOver = useCallback(() => {
     document.body.style.cursor = 'pointer';
-  };
-
-  const handlePointerOut = () => {
-    document.body.style.cursor = 'default';
-  };
-
-  // 🌌 创建数据流粒子系统
-  const particles = useMemo(() => {
-    const count = 200;
-    const positions = new Float32Array(count * 3);
-
-    for (let i = 0; i < count; i++) {
-      const i3 = i * 3;
-      const radius = 2 + Math.random() * 3;
-      const theta = Math.random() * Math.PI * 2;
-      const phi = Math.random() * Math.PI;
-
-      positions[i3] = radius * Math.sin(phi) * Math.cos(theta);
-      positions[i3 + 1] = radius * Math.sin(phi) * Math.sin(theta);
-      positions[i3 + 2] = radius * Math.cos(phi);
-    }
-
-    const geometry = new BufferGeometry();
-    geometry.setAttribute('position', new BufferAttribute(positions, 3));
-
-    return geometry;
   }, []);
 
-  // 🎬 动画循环
+  const handlePointerOut = useCallback(() => {
+    document.body.style.cursor = 'default';
+  }, []);
+
+  // Shield hexagon positions (6 pieces in partial sphere)
+  const shieldPositions = useMemo(() => {
+    const positions: [number, number, number][] = [];
+    for (let i = 0; i < 6; i++) {
+      const angle = (i / 6) * Math.PI * 2;
+      const y = (i % 2 === 0 ? 0.3 : -0.3);
+      positions.push([
+        Math.cos(angle) * 1.5,
+        y,
+        Math.sin(angle) * 1.5,
+      ]);
+    }
+    return positions;
+  }, []);
+
+  const lastPulseState = useRef(false);
+
   useFrame((state) => {
     const time = state.clock.elapsedTime;
 
-    // 🫁 核心呼吸效果
+    // Gentle Y-axis bobbing
     if (robotRef.current) {
-      const breathScale = 1 + Math.sin(time * 0.8) * 0.05;
-      robotRef.current.scale.setScalar(breathScale);
-      robotRef.current.position.y = Math.sin(time * 0.5) * 0.2;
+      robotRef.current.position.y = Math.sin(time * 0.8) * 0.1;
     }
 
-    // 🔄 外圈旋转
-    if (outerRingRef.current) {
-      outerRingRef.current.rotation.z = time * 0.3;
+    // Holographic ring counter-rotation
+    if (ring1Ref.current) {
+      ring1Ref.current.rotation.z = time * 0.5;
+      ring1Ref.current.rotation.x = Math.sin(time * 0.3) * 0.2;
+    }
+    if (ring2Ref.current) {
+      ring2Ref.current.rotation.z = -time * 0.4;
+      ring2Ref.current.rotation.y = Math.cos(time * 0.25) * 0.3;
     }
 
-    // 🔄 中圈反向旋转
-    if (middleRingRef.current) {
-      middleRingRef.current.rotation.z = -time * 0.5;
+    // Orbiting data particles
+    if (orbitGroup1Ref.current) {
+      orbitGroup1Ref.current.rotation.y = time * 0.8;
+    }
+    if (orbitGroup2Ref.current) {
+      orbitGroup2Ref.current.rotation.y = -time * 0.6;
+      orbitGroup2Ref.current.rotation.x = 0.4;
+    }
+    if (orbitGroup3Ref.current) {
+      orbitGroup3Ref.current.rotation.z = time * 0.7;
+      orbitGroup3Ref.current.rotation.x = -0.3;
     }
 
-    // ✨ 粒子流动
-    if (
-      particlesRef.current &&
-      particlesRef.current.geometry &&
-      particlesRef.current.geometry.attributes &&
-      particlesRef.current.geometry.attributes.position
-    ) {
-      const positions = particlesRef.current.geometry.attributes.position.array as Float32Array;
-      if (positions && positions.length > 0) {
-        for (let i = 0; i < positions.length; i += 3) {
-          // 螺旋运动
-          const angle = time * 0.5 + i * 0.01;
-          const radius = 2 + Math.sin(time + i * 0.1) * 0.5;
-          positions[i] = Math.cos(angle) * radius;
-          positions[i + 1] = Math.sin(angle) * radius;
-          positions[i + 2] = Math.sin(time * 0.3 + i * 0.05) * 2;
-        }
-        particlesRef.current.geometry.attributes.position.needsUpdate = true;
+    // Energy core rotation and pulsing
+    if (coreRef.current) {
+      coreRef.current.rotation.x = time * 1.5;
+      coreRef.current.rotation.y = time * 1.2;
+      const mat = coreRef.current.material as any;
+      if (mat && 'emissiveIntensity' in mat) {
+        mat.emissiveIntensity = 2.0 + Math.sin(time * 3) * 1.0;
       }
     }
+
+    // Shield pieces subtle float
+    if (shieldGroupRef.current) {
+      shieldGroupRef.current.rotation.y = time * 0.15;
+      shieldGroupRef.current.children.forEach((child, i) => {
+        child.position.y = shieldPositions[i][1] + Math.sin(time * 0.5 + i) * 0.1;
+      });
+    }
+
+    // Spawn pulse when signal activates
+    if (signalPulseActive && !lastPulseState.current) {
+      const id = ++pulseIdRef.current;
+      setPulses(prev => [...prev, id]);
+      setTimeout(() => {
+        setPulses(prev => prev.filter(p => p !== id));
+      }, 2000);
+    }
+    lastPulseState.current = signalPulseActive;
+
+    // Animate pulse rings (dual-color)
+    pulseRefs.current.forEach((mesh) => {
+      if (!mesh) return;
+      const mat = mesh.material as any;
+      const currentScale = mesh.scale.x;
+      const newScale = currentScale + state.clock.getDelta() * 10;
+      mesh.scale.setScalar(newScale);
+      if (mat && 'opacity' in mat) {
+        mat.opacity = Math.max(0, 1 - newScale / 15);
+      }
+    });
+    pulseInnerRefs.current.forEach((mesh) => {
+      if (!mesh) return;
+      const mat = mesh.material as any;
+      const currentScale = mesh.scale.x;
+      const newScale = currentScale + state.clock.getDelta() * 12;
+      mesh.scale.setScalar(newScale);
+      if (mat && 'opacity' in mat) {
+        mat.opacity = Math.max(0, 0.8 - newScale / 12);
+      }
+    });
   });
 
   return (
     <group ref={robotRef} position={[0, 0, 0]}>
-      {/* 🤖 核心球体 - Cyberpunk 风格（可点击，带动画） */}
+      {/* ===== HEAD - Chrome sphere ===== */}
       <animated.mesh
         castShadow
         onClick={handleClick}
         onPointerOver={handlePointerOver}
         onPointerOut={handlePointerOut}
         scale={pulseSpring.scale}
+        position={[0, 0.6, 0]}
       >
-        <sphereGeometry args={[1.2, 32, 32]} />
-        <animated.meshStandardMaterial
-          color="#0A0E27"
-          metalness={0.9}
-          roughness={0.1}
-          emissive="#00FFFF"
-          emissiveIntensity={pulseSpring.emissiveIntensity}
+        <sphereGeometry args={[0.6, 32, 32]} />
+        <meshPhysicalMaterial
+          color="#2a2a3e"
+          metalness={0.95}
+          roughness={0.05}
+          clearcoat={1.0}
+          clearcoatRoughness={0.1}
+          reflectivity={1.0}
         />
       </animated.mesh>
 
-      {/* 🔮 内部发光核心 */}
-      <mesh>
-        <sphereGeometry args={[0.8, 32, 32]} />
+      {/* ===== VISOR - Glass band with transmission ===== */}
+      <mesh position={[0, 0.6, 0]} rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[0.62, 0.62, 0.18, 32]} />
+        <meshPhysicalMaterial
+          color="#00FFFF"
+          metalness={0.1}
+          roughness={0.05}
+          transmission={0.7}
+          thickness={0.5}
+          ior={1.5}
+          transparent
+          opacity={0.85}
+          emissive="#00FFFF"
+          emissiveIntensity={0.5}
+        />
+      </mesh>
+
+      {/* ===== EYES - Two small emissive cyan dots behind visor ===== */}
+      <mesh position={[-0.18, 0.62, 0.5]}>
+        <sphereGeometry args={[0.06, 12, 12]} />
         <meshStandardMaterial
           color="#00FFFF"
           emissive="#00FFFF"
-          emissiveIntensity={2}
+          emissiveIntensity={3}
+        />
+      </mesh>
+      <mesh position={[0.18, 0.62, 0.5]}>
+        <sphereGeometry args={[0.06, 12, 12]} />
+        <meshStandardMaterial
+          color="#00FFFF"
+          emissive="#00FFFF"
+          emissiveIntensity={3}
+        />
+      </mesh>
+
+      {/* ===== BODY - Dark metallic rounded box ===== */}
+      <mesh position={[0, -0.15, 0]} castShadow>
+        <boxGeometry args={[0.9, 0.9, 0.65]} />
+        <meshPhysicalMaterial
+          color="#0f0f1a"
+          metalness={0.8}
+          roughness={0.2}
+          clearcoat={0.5}
+          clearcoatRoughness={0.3}
+        />
+      </mesh>
+
+      {/* ===== CHEST PLATE - Semi-transparent showing energy core ===== */}
+      <mesh position={[0, -0.1, 0.34]}>
+        <boxGeometry args={[0.4, 0.4, 0.05]} />
+        <meshPhysicalMaterial
+          color="#1a1a3e"
+          metalness={0.2}
+          roughness={0.1}
+          transmission={0.6}
+          thickness={0.3}
+          ior={1.4}
+          transparent
+          opacity={0.6}
+          emissive="#00FFFF"
+          emissiveIntensity={0.2}
+        />
+      </mesh>
+
+      {/* ===== ENERGY CORE - Rotating emissive icosahedron ===== */}
+      <mesh ref={coreRef} position={[0, -0.1, 0.15]}>
+        <icosahedronGeometry args={[0.15, 0]} />
+        <meshStandardMaterial
+          color="#00FFFF"
+          emissive="#00FFFF"
+          emissiveIntensity={2.5}
+          transparent
+          opacity={0.9}
+        />
+      </mesh>
+
+      {/* Energy core inner glow */}
+      <pointLight position={[0, -0.1, 0.15]} intensity={0.8} distance={3} color="#00FFFF" />
+
+      {/* ===== HOLOGRAPHIC PROJECTION RINGS ===== */}
+      <mesh ref={ring1Ref} position={[0, 0.2, 0]} rotation={[0.6, 0, 0]}>
+        <torusGeometry args={[1.2, 0.02, 8, 64]} />
+        <meshStandardMaterial
+          color="#00FFFF"
+          emissive="#00FFFF"
+          emissiveIntensity={1.5}
           transparent
           opacity={0.6}
         />
       </mesh>
-
-      {/* 🌟 能量脉冲点 - 眼睛 */}
-      <mesh position={[-0.4, 0.3, 1.0]}>
-        <sphereGeometry args={[0.15, 16, 16]} />
+      <mesh ref={ring2Ref} position={[0, 0.2, 0]} rotation={[-0.4, 0.8, 0]}>
+        <torusGeometry args={[1.4, 0.015, 8, 64]} />
         <meshStandardMaterial
           color="#FF00FF"
           emissive="#FF00FF"
-          emissiveIntensity={3}
-        />
-      </mesh>
-      <mesh position={[0.4, 0.3, 1.0]}>
-        <sphereGeometry args={[0.15, 16, 16]} />
-        <meshStandardMaterial
-          color="#FF00FF"
-          emissive="#FF00FF"
-          emissiveIntensity={3}
+          emissiveIntensity={1.2}
+          transparent
+          opacity={0.45}
         />
       </mesh>
 
-      {/* 🔷 外层旋转框架 - Cyberpunk 棱角 */}
-      <group ref={outerRingRef}>
-        {/* 八边形框架 */}
-        {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => {
-          const angle = (i / 8) * Math.PI * 2;
-          const x = Math.cos(angle) * 2.5;
-          const y = Math.sin(angle) * 2.5;
-          return (
-            <mesh key={`outer-ring-${i}`} position={[x, y, 0]} rotation={[0, 0, angle]}>
-              <boxGeometry args={[0.8, 0.1, 0.1]} />
-              <meshStandardMaterial
-                color="#00FFFF"
-                emissive="#00FFFF"
-                emissiveIntensity={1.5}
-                transparent
-                opacity={0.8}
-              />
-            </mesh>
-          );
-        })}
+      {/* ===== ORBITING DATA PARTICLES ===== */}
+      <group ref={orbitGroup1Ref}>
+        <mesh position={[1.6, 0, 0]}>
+          <icosahedronGeometry args={[0.08, 0]} />
+          <meshStandardMaterial
+            color="#00FFFF"
+            emissive="#00FFFF"
+            emissiveIntensity={2}
+            transparent
+            opacity={0.8}
+          />
+        </mesh>
       </group>
-
-      {/* 💫 中层旋转环 - Magenta */}
-      <group ref={middleRingRef}>
-        <mesh rotation={[Math.PI / 2, 0, 0]}>
-          <torusGeometry args={[2.0, 0.08, 16, 100]} />
+      <group ref={orbitGroup2Ref}>
+        <mesh position={[0, 0, 1.8]}>
+          <icosahedronGeometry args={[0.06, 0]} />
           <meshStandardMaterial
             color="#FF00FF"
             emissive="#FF00FF"
-            emissiveIntensity={1.2}
+            emissiveIntensity={2}
             transparent
             opacity={0.7}
           />
         </mesh>
-
-        {/* 环上的能量节点 */}
-        {[0, 1, 2, 3].map((i) => {
-          const angle = (i / 4) * Math.PI * 2;
-          const x = Math.cos(angle) * 2.0;
-          const z = Math.sin(angle) * 2.0;
-          return (
-            <mesh key={`middle-ring-node-${i}`} position={[x, 0, z]}>
-              <sphereGeometry args={[0.12, 16, 16]} />
-              <meshStandardMaterial
-                color="#FFFF00"
-                emissive="#FFFF00"
-                emissiveIntensity={2}
-              />
-            </mesh>
-          );
-        })}
+      </group>
+      <group ref={orbitGroup3Ref}>
+        <mesh position={[-1.5, 0.3, 0]}>
+          <icosahedronGeometry args={[0.07, 0]} />
+          <meshStandardMaterial
+            color="#FFA500"
+            emissive="#FFA500"
+            emissiveIntensity={2}
+            transparent
+            opacity={0.75}
+          />
+        </mesh>
       </group>
 
-      {/* 🌊 底部全息投影圈 */}
-      <mesh position={[0, -2, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[1.5, 2.5, 64]} />
-        <meshStandardMaterial
-          color="#00FFFF"
-          emissive="#00FFFF"
-          emissiveIntensity={1}
-          transparent
-          opacity={0.4}
-          side={2}
-        />
-      </mesh>
+      {/* ===== FLOATING SHIELD HEXAGONS ===== */}
+      <group ref={shieldGroupRef}>
+        {shieldPositions.map((pos, i) => (
+          <mesh key={`shield-${i}`} position={pos} rotation={[0, (i / 6) * Math.PI * 2, 0]}>
+            <circleGeometry args={[0.2, 6]} />
+            <meshStandardMaterial
+              color="#00FFFF"
+              emissive="#00FFFF"
+              emissiveIntensity={0.3}
+              transparent
+              opacity={0.12}
+              side={DoubleSide}
+              blending={AdditiveBlending}
+              depthWrite={false}
+            />
+          </mesh>
+        ))}
+      </group>
 
-      {/* ✨ 数据流粒子系统 */}
-      <points ref={particlesRef} geometry={particles}>
-        <pointsMaterial
-          color="#00FFFF"
-          size={0.08}
-          transparent
-          opacity={0.8}
-          blending={AdditiveBlending}
-          sizeAttenuation={true}
-        />
-      </points>
+      {/* Head point light */}
+      <pointLight position={[0, 0.6, 0]} intensity={0.5} distance={5} color="#00FFFF" />
 
-      {/* 🔺 顶部信号发射器 */}
-      <mesh position={[0, 2, 0]}>
-        <coneGeometry args={[0.3, 0.8, 4]} />
-        <meshStandardMaterial
-          color="#00FFFF"
-          emissive="#00FFFF"
-          emissiveIntensity={2}
-          transparent
-          opacity={0.7}
-        />
-      </mesh>
-
-      {/* 🎯 4个悬浮能量核心 */}
-      {[0, 1, 2, 3].map((i) => {
-        const angle = (i / 4) * Math.PI * 2 + Math.PI / 4;
-        const radius = 1.8;
-        const x = Math.cos(angle) * radius;
-        const z = Math.sin(angle) * radius;
-        return (
-          <group key={`energy-core-${i}`} position={[x, 0, z]}>
-            <mesh>
-              <octahedronGeometry args={[0.15]} />
-              <meshStandardMaterial
-                color={i % 2 === 0 ? "#00FFFF" : "#FF00FF"}
-                emissive={i % 2 === 0 ? "#00FFFF" : "#FF00FF"}
-                emissiveIntensity={1.5}
-                transparent
-                opacity={0.9}
-              />
-            </mesh>
-          </group>
-        );
-      })}
+      {/* ===== SIGNAL PULSE RINGS (dual-color) ===== */}
+      {pulses.map((id, i) => (
+        <group key={id}>
+          {/* Outer cyan ring */}
+          <mesh
+            ref={(el) => { if (el) pulseRefs.current[i] = el; }}
+            rotation={[Math.PI / 2, 0, 0]}
+            scale={[0.1, 0.1, 0.1]}
+          >
+            <torusGeometry args={[1, 0.04, 8, 64]} />
+            <meshBasicMaterial
+              color="#00FFFF"
+              transparent
+              opacity={1}
+            />
+          </mesh>
+          {/* Inner magenta ring */}
+          <mesh
+            ref={(el) => { if (el) pulseInnerRefs.current[i] = el; }}
+            rotation={[Math.PI / 2, 0, 0]}
+            scale={[0.08, 0.08, 0.08]}
+          >
+            <torusGeometry args={[0.8, 0.03, 8, 64]} />
+            <meshBasicMaterial
+              color="#FF00FF"
+              transparent
+              opacity={0.8}
+            />
+          </mesh>
+        </group>
+      ))}
     </group>
   );
 }

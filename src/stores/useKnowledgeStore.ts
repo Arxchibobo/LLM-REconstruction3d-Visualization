@@ -30,6 +30,9 @@ interface KnowledgeStore {
   visualizationMode: VisualizationMode;  // 当前可视化模式
   projectFiles: ProjectFile[];           // 项目文件列表
 
+  // 布局计算结果（供 AttentionFlow 等组件使用正确位置）
+  layoutNodeMap: Record<string, KnowledgeNode>;
+
   // UI 状态
   isOpen: boolean;
   searchQuery: string;
@@ -38,6 +41,8 @@ interface KnowledgeStore {
   enabledNodeTypes: Set<string>;  // 🆕 启用的节点类型（用于过滤）
   cameraZoom: number;  // 🆕 相机缩放级别（1-200）
   cameraReset: boolean;  // 🆕 触发相机重置
+  isTransitioning: boolean;  // 模式切换过渡动画
+  signalPulseActive: boolean;  // CenterRobot signal pulse
 
   // Actions
   setNodes: (nodes: KnowledgeNode[]) => void;
@@ -50,10 +55,13 @@ interface KnowledgeStore {
   setLayoutType: (type: 'force' | 'circular' | 'grid' | 'hierarchical' | 'orbital') => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
+  setLayoutNodeMap: (map: Record<string, KnowledgeNode>) => void;
   setEnabledNodeTypes: (types: Set<string>) => void;  // 🆕 设置启用的节点类型
   toggleNodeType: (type: string) => void;  // 🆕 切换节点类型
   setCameraZoom: (zoom: number) => void;  // 🆕 设置相机缩放
   triggerCameraReset: () => void;  // 🆕 触发相机重置
+  setIsTransitioning: (transitioning: boolean) => void;  // 模式切换过渡
+  triggerSignalPulse: () => void;  // Trigger CenterRobot signal pulse
 
   // 添加节点
   addNode: (node: KnowledgeNode) => void;
@@ -92,6 +100,7 @@ export const useKnowledgeStore = create<KnowledgeStore>((set, get) => ({
   claudeConfigStats: null,
   visualizationMode: 'claude-config',  // 🆕 默认显示 Claude 配置
   projectFiles: [],  // 🆕 项目文件列表
+  layoutNodeMap: {},
   isOpen: true,
   searchQuery: '',
   cameraTarget: null,
@@ -99,6 +108,8 @@ export const useKnowledgeStore = create<KnowledgeStore>((set, get) => ({
   enabledNodeTypes: new Set(['claude', 'adapter', 'category', 'skill', 'plugin', 'mcp', 'hook', 'rule', 'agent', 'memory', 'document', 'error']),  // 🆕 默认启用所有类型（包含工程化节点）
   cameraZoom: 100,  // 🆕 默认缩放 100%
   cameraReset: false,  // 🆕 默认不触发重置
+  isTransitioning: false,  // 模式切换过渡
+  signalPulseActive: false,  // CenterRobot signal pulse
 
   // Actions
   setNodes: (nodes) => set({ nodes }),
@@ -111,6 +122,7 @@ export const useKnowledgeStore = create<KnowledgeStore>((set, get) => ({
   setLayoutType: (layoutType) => set({ layoutType }),
   setLoading: (loading) => set({ loading }),
   setError: (error) => set({ error }),
+  setLayoutNodeMap: (layoutNodeMap) => set({ layoutNodeMap }),
   setEnabledNodeTypes: (enabledNodeTypes) => set({ enabledNodeTypes }),
   // 🚀 优化版 toggleNodeType - 减少Set创建
   toggleNodeType: (type) =>
@@ -133,6 +145,11 @@ export const useKnowledgeStore = create<KnowledgeStore>((set, get) => ({
     }),
   setCameraZoom: (cameraZoom) => set({ cameraZoom }),
   triggerCameraReset: () => set({ cameraReset: true }, false),  // 触发后立即重置标志
+  setIsTransitioning: (isTransitioning) => set({ isTransitioning }),
+  triggerSignalPulse: () => {
+    set({ signalPulseActive: true });
+    setTimeout(() => set({ signalPulseActive: false }), 2000);
+  },
 
   addNode: (node) =>
     set((state) => ({

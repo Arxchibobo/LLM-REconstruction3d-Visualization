@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useMemo } from 'react';
+import { useRef, useMemo, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Group, Vector3 } from 'three';
 import { QuadraticBezierLine, Line } from '@react-three/drei';
@@ -12,6 +12,7 @@ import {
   computeHierarchicalLayout,
   computeOrbitalLayout,
 } from '@/utils/layout';
+import * as THREE from 'three';
 import type { KnowledgeNode, Connection } from '@/types/knowledge';
 import PlanetNode from './PlanetNode';
 import InstancedPlanetNodes from './InstancedPlanetNodes';
@@ -19,6 +20,25 @@ import CenterRobot from './CenterRobot';
 import GridFloor from './GridFloor';
 import ParticleField from './ParticleField';
 import HooksLayerDetail from './HooksLayerDetail';
+
+/**
+ * Build arc points for dashed line rendering
+ */
+function buildArcPoints(
+  start: Vector3,
+  end: Vector3,
+  arcHeight: number,
+  sideOffset: number = 0,
+  segments: number = 32
+): Vector3[] {
+  const mid = new Vector3().lerpVectors(start, end, 0.5);
+  mid.y += arcHeight;
+  mid.x += sideOffset;
+  mid.z += sideOffset * 0.3;
+
+  const curve = new THREE.QuadraticBezierCurve3(start, mid, end);
+  return curve.getPoints(segments);
+}
 
 /**
  * 根据形状计算表面乘数
@@ -88,7 +108,8 @@ export default function KnowledgeGraph() {
     layoutType,
     hoveredNode,
     selectedNode,
-    enabledNodeTypes
+    enabledNodeTypes,
+    setLayoutNodeMap
   } = useKnowledgeStore();
 
   // 搜索和类型过滤节点
@@ -130,9 +151,13 @@ export default function KnowledgeGraph() {
     return result;
   }, [filteredNodes, connections, layoutType]);
 
-  // 注意：不再同步 layout 到 store，避免无限循环
-  // AttentionFlow 组件会直接使用 store 中的原始节点位置
-  // 连接线使用 layout.nodeMap 中的计算位置
+  // 同步布局计算位置到 store，供 AttentionFlow 等组件使用
+  // 写入单独的 layoutNodeMap 字段，不会触发 layout 重算，无循环风险
+  useEffect(() => {
+    if (layout.nodeMap && Object.keys(layout.nodeMap).length > 0) {
+      setLayoutNodeMap(layout.nodeMap);
+    }
+  }, [layout.nodeMap, setLayoutNodeMap]);
 
   // 🔄 禁用自动旋转动画 - 保持节点和连接线对齐
   // useFrame((state) => {
@@ -149,10 +174,41 @@ export default function KnowledgeGraph() {
   // 过滤掉中心节点（已由CenterRobot独立渲染）
   const planetsToRender = layout.nodes.filter((node) => node.id !== 'center');
 
-  // 🚀 性能优化: 当节点数量 >50 时使用 InstancedMesh
-  // 暂时禁用 InstancedMesh 以支持节点交互（点击、hover）
-  // TODO: 后续可以为 InstancedMesh 添加 raycasting 支持
-  const useInstancedRendering = false; // planetsToRender.length > 500;
+  // Split nodes: core/tool/hovered/selected/connected → full PlanetNode, rest → instanced
+  const { fullRenderNodes, instancedNodes } = useMemo(() => {
+    const fullIds = new Set<string>();
+
+    // Always render core (adapter) and tool (category) layer nodes as full PlanetNodes
+    const coreToolTypes = new Set(['adapter', 'category']);
+    planetsToRender.forEach(node => {
+      if (coreToolTypes.has(node.type)) {
+        fullIds.add(node.id);
+      }
+    });
+
+    // Always render hovered, selected, and connected nodes as full
+    if (hoveredNode) fullIds.add(hoveredNode.id);
+    if (selectedNode) {
+      fullIds.add(selectedNode.id);
+      connections.forEach(conn => {
+        if (conn.source === selectedNode.id) fullIds.add(conn.target);
+        if (conn.target === selectedNode.id) fullIds.add(conn.source);
+      });
+    }
+
+    const full: KnowledgeNode[] = [];
+    const instanced: KnowledgeNode[] = [];
+
+    planetsToRender.forEach(node => {
+      if (fullIds.has(node.id)) {
+        full.push(node);
+      } else {
+        instanced.push(node);
+      }
+    });
+
+    return { fullRenderNodes: full, instancedNodes: instanced };
+  }, [planetsToRender, hoveredNode, selectedNode, connections]);
 
   /**
    * 🔗 优雅的连接线系统 - 分层渐进显示
@@ -177,10 +233,10 @@ export default function KnowledgeGraph() {
     // 使用 Map 去重连接
     const uniqueConnections = new Map<string, typeof allConnections[0]>();
 
-    // 🎯 核心骨架：layer-hooks → categories（不再显示 center 的连接，由 AttentionFlow 处理）
+    // 🎯 核心骨架：center → categories（由 AttentionFlow 处理动画流）
     const skeletonConnections = allConnections.filter((conn) => {
-      // layer-hooks 到各 category 的路由连接
-      if (conn.source === 'layer-hooks' && conn.target.startsWith('category-')) return true;
+      // center 到各 category 的路由连接
+      if (conn.source === 'center' && conn.target.startsWith('category-')) return true;
       return false;
     });
 
@@ -235,10 +291,10 @@ export default function KnowledgeGraph() {
         uniqueConnections.set(conn.id, conn);
       });
 
-      // 如果选中的是 category，也显示 center → layer-hooks → category 的完整路径
-      if (selectedNode.type === 'category' || selectedNode.id === 'layer-hooks') {
+      // 如果选中的是 category，也显示 center → category 的完整路径
+      if (selectedNode.type === 'category') {
         const corePathConnections = allConnections.filter((conn) => {
-          if (conn.source === 'center' && conn.target === 'layer-hooks') return true;
+          if (conn.source === 'center' && conn.target === selectedNode.id) return true;
           return false;
         });
         corePathConnections.forEach(conn => {
@@ -252,20 +308,18 @@ export default function KnowledgeGraph() {
     return Array.from(uniqueConnections.values());
   }, [hoveredNode, selectedNode, connections, layout.connections]);
 
-  // 🔒 Hook Layer 专注模式：选中 layer-hooks 时隐藏其他所有内容
-  const isHookLayerFocused = selectedNode?.id === 'layer-hooks';
-
   return (
     <>
-      {/* 🌌 背景增强效果 (Phase 4) - Hook Layer 模式下保留 */}
+      {/* 🌌 背景增强效果 */}
       <ParticleField />
       <GridFloor />
+      <HooksLayerDetail layoutPosition={layout.nodeMap['category-hooks']?.position} />
 
-      {/* 中心机器人 - Hook Layer 模式下隐藏 */}
-      {!isHookLayerFocused && <CenterRobot />}
+      {/* 中心机器人 */}
+      <CenterRobot />
 
-      {/* 🔗 优雅的连接线系统 - Hook Layer 模式下完全隐藏 */}
-      {!isHookLayerFocused && visibleConnections.map((conn, index) => {
+      {/* 🔗 优雅的连接线系统 */}
+      {visibleConnections.map((conn, index) => {
         const source = layout.nodeMap[conn.source];
         const target = layout.nodeMap[conn.target];
 
@@ -337,7 +391,7 @@ export default function KnowledgeGraph() {
         const distance = start.distanceTo(end);
 
         // 🎨 根据连接层级计算弧度
-        const isCoreConnection = conn.source === 'layer-hooks';
+        const isCoreConnection = conn.source === 'center';
         const isResourceConnection = conn.source.startsWith('category-');
 
         // 使用辅助函数计算弧度和偏移
@@ -377,6 +431,24 @@ export default function KnowledgeGraph() {
         const lineWidth = shouldDim ? 0.3 : (isHighlighted ? 2 : (isCoreConnection ? 1.2 : 0.8));
         const opacity = shouldDim ? 0.06 : (isHighlighted ? 0.85 : (isCoreConnection ? 0.5 : 0.3));
 
+        // Use dashed <Line> for dashed connections, solid <QuadraticBezierLine> for others
+        if (conn.visual?.dashed) {
+          const arcPoints = buildArcPoints(start, end, arcHeight, sideOffset);
+          return (
+            <Line
+              key={`conn-${conn.id}-${index}`}
+              points={arcPoints}
+              color={color}
+              lineWidth={lineWidth}
+              dashed
+              dashSize={0.6}
+              gapSize={0.4}
+              transparent
+              opacity={opacity}
+            />
+          );
+        }
+
         return (
           <QuadraticBezierLine
             key={`conn-${conn.id}-${index}`}
@@ -391,29 +463,19 @@ export default function KnowledgeGraph() {
         );
       })}
 
-      {/* 节点群组 */}
+      {/* 节点群组 - Split rendering: full PlanetNode + instanced */}
       <group ref={groupRef}>
-        {/* 🚀 根据节点数量选择渲染方式 */}
-        {useInstancedRendering ? (
-          // 节点数量 >50: 使用 InstancedMesh 批量渲染
-          <InstancedPlanetNodes
-            nodes={planetsToRender}
-            hoveredNodeId={hoveredNode?.id}
-            selectedNodeId={selectedNode?.id}
-          />
-        ) : (
-          // 节点数量 <=50: 使用常规渲染
-          // Hook Layer 模式下只显示 layer-hooks 节点本身
-          planetsToRender
-            .filter(node => !isHookLayerFocused || node.id === 'layer-hooks')
-            .map((node) => (
-              <PlanetNode key={node.id} node={node} />
-            ))
+        {/* Full PlanetNode for core/tool/hovered/selected/connected nodes */}
+        {fullRenderNodes.map((node) => (
+            <PlanetNode key={node.id} node={node} />
+          ))}
+
+        {/* Instanced rendering for remaining resource nodes */}
+        {instancedNodes.length > 0 && (
+          <InstancedPlanetNodes nodes={instancedNodes} />
         )}
       </group>
 
-      {/* 🪝 Hooks Layer 详细视图 - 点击 layer-hooks 节点时显示 */}
-      <HooksLayerDetail layoutPosition={layout.nodeMap['layer-hooks']?.position} />
     </>
   );
 }

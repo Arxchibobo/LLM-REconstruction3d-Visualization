@@ -15,7 +15,8 @@ export default function ModernTopBar() {
     loadKnowledgeBase,
     loadProjectStructure,
     visualizationMode,
-    setVisualizationMode
+    setVisualizationMode,
+    setIsTransitioning
   } = useKnowledgeStore();
 
   // 设置面板状态
@@ -55,18 +56,27 @@ export default function ModernTopBar() {
     autoLoadKnowledgeBase();
   }, []); // 空依赖数组，仅在组件挂载时执行一次
 
-  // 切换数据源
+  // 切换数据源（带过渡动画）
   const handleDataSourceSwitch = async (mode: VisualizationMode) => {
+    if (mode === visualizationMode) return;
 
+    // 1. 开始淡出
+    setIsTransitioning(true);
+
+    // 2. 等待淡出完成
+    await new Promise((resolve) => setTimeout(resolve, 400));
+
+    // 3. 加载新数据
     if (mode === 'claude-config') {
-      // 重新加载 Claude 配置
       const claudePath = 'E:\\Bobo\'s Coding cache\\.claude';
       await loadKnowledgeBase(claudePath);
       setVisualizationMode('claude-config');
     } else {
-      // 加载项目结构 (通过 API)
-      await loadProjectStructure(''); // 空字符串表示使用默认的 src/
+      await loadProjectStructure('');
     }
+
+    // 4. 淡入
+    setIsTransitioning(false);
   };
 
   return (

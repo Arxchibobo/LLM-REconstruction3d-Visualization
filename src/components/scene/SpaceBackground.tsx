@@ -6,29 +6,24 @@ import { Points, PointMaterial } from '@react-three/drei';
 import * as THREE from 'three';
 
 /**
- * 🌌 深空背景系统（Phase 2.3）
- *
- * 设计规范来自 DESIGN_SPEC.md:
- * - 深蓝黑渐变（#0A0E27 → #1A1F3A）
- * - 微弱噪声纹理（5-10% opacity）
- * - 3 层 Parallax 景深效果
- * - 极少量远景粒子（避免廉价感）
- * - "Quiet, Intelligent, Confident" 美学
+ * SpaceBackground - Deep space with Milky Way band, enhanced nebulae,
+ * twinkling bright stars, and rich color variety.
  */
 export default function SpaceBackground() {
   const distantStarsRef = useRef<THREE.Points>(null);
   const midStarsRef = useRef<THREE.Points>(null);
   const nearStarsRef = useRef<THREE.Points>(null);
-  const noiseRef = useRef<THREE.Points>(null);
+  const milkyWayRef = useRef<THREE.Points>(null);
+  const twinkleRef = useRef<THREE.Points>(null);
 
-  // 🌌 Layer 1: 远景粒子（极少，150 半径）
+  // Layer 1: Distant stars (warm tones)
   const distantStars = useMemo(() => {
-    const positions = new Float32Array(50 * 3);
-    for (let i = 0; i < 50; i++) {
+    const count = 1200;
+    const positions = new Float32Array(count * 3);
+    for (let i = 0; i < count; i++) {
       const radius = 150 + Math.random() * 50;
       const theta = Math.random() * Math.PI * 2;
       const phi = Math.acos(2 * Math.random() - 1);
-
       positions[i * 3] = radius * Math.sin(phi) * Math.cos(theta);
       positions[i * 3 + 1] = radius * Math.sin(phi) * Math.sin(theta);
       positions[i * 3 + 2] = radius * Math.cos(phi);
@@ -36,14 +31,14 @@ export default function SpaceBackground() {
     return positions;
   }, []);
 
-  // 🌌 Layer 2: 中景粒子（100 半径）
+  // Layer 2: Mid-range stars (blue-white)
   const midStars = useMemo(() => {
-    const positions = new Float32Array(30 * 3);
-    for (let i = 0; i < 30; i++) {
+    const count = 800;
+    const positions = new Float32Array(count * 3);
+    for (let i = 0; i < count; i++) {
       const radius = 100 + Math.random() * 40;
       const theta = Math.random() * Math.PI * 2;
       const phi = Math.acos(2 * Math.random() - 1);
-
       positions[i * 3] = radius * Math.sin(phi) * Math.cos(theta);
       positions[i * 3 + 1] = radius * Math.sin(phi) * Math.sin(theta);
       positions[i * 3 + 2] = radius * Math.cos(phi);
@@ -51,14 +46,14 @@ export default function SpaceBackground() {
     return positions;
   }, []);
 
-  // 🌌 Layer 3: 近景粒子（60 半径）
+  // Layer 3: Near stars (bright white with occasional warm star)
   const nearStars = useMemo(() => {
-    const positions = new Float32Array(15 * 3);
-    for (let i = 0; i < 15; i++) {
+    const count = 500;
+    const positions = new Float32Array(count * 3);
+    for (let i = 0; i < count; i++) {
       const radius = 60 + Math.random() * 20;
       const theta = Math.random() * Math.PI * 2;
       const phi = Math.acos(2 * Math.random() - 1);
-
       positions[i * 3] = radius * Math.sin(phi) * Math.cos(theta);
       positions[i * 3 + 1] = radius * Math.sin(phi) * Math.sin(theta);
       positions[i * 3 + 2] = radius * Math.cos(phi);
@@ -66,40 +61,152 @@ export default function SpaceBackground() {
     return positions;
   }, []);
 
-  // ✨ 噪声纹理粒子（200个微小粒子）
-  const noise = useMemo(() => {
-    const positions = new Float32Array(200 * 3);
-    for (let i = 0; i < 200; i++) {
-      positions[i * 3] = (Math.random() - 0.5) * 200;
-      positions[i * 3 + 1] = (Math.random() - 0.5) * 200;
-      positions[i * 3 + 2] = (Math.random() - 0.5) * 100 - 50; // 靠后
+  // Milky Way band: 3000 particles in a flat disc with Gaussian concentration
+  const milkyWayData = useMemo(() => {
+    const count = 3000;
+    const positions = new Float32Array(count * 3);
+    const colors = new Float32Array(count * 3);
+    const warmColors = [
+      new THREE.Color('#FFE4B5'), // Moccasin
+      new THREE.Color('#DEB887'), // BurlyWood
+      new THREE.Color('#FFDAB9'), // PeachPuff
+      new THREE.Color('#F5DEB3'), // Wheat
+      new THREE.Color('#D2B48C'), // Tan
+    ];
+
+    for (let i = 0; i < count; i++) {
+      // Flat disc with Gaussian Y spread
+      const angle = Math.random() * Math.PI * 2;
+      const radius = 50 + Math.random() * 150;
+      // Gaussian concentration toward center band
+      const gaussianY = (Math.random() + Math.random() + Math.random() - 1.5) * 3;
+
+      positions[i * 3] = Math.cos(angle) * radius;
+      positions[i * 3 + 1] = gaussianY;
+      positions[i * 3 + 2] = Math.sin(angle) * radius - 80; // Push behind scene
+
+      // Mixed warm colors
+      const c = warmColors[Math.floor(Math.random() * warmColors.length)];
+      colors[i * 3] = c.r;
+      colors[i * 3 + 1] = c.g;
+      colors[i * 3 + 2] = c.b;
     }
-    return positions;
+    return { positions, colors };
   }, []);
 
-  // Parallax 动画（不同层级不同速度）
-  useFrame(() => {
+  // Twinkling bright stars: 40 larger stars with animated opacity
+  const twinkleStars = useMemo(() => {
+    const count = 40;
+    const positions = new Float32Array(count * 3);
+    const phases = new Float32Array(count); // For varied twinkle timing
+    for (let i = 0; i < count; i++) {
+      const radius = 80 + Math.random() * 100;
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos(2 * Math.random() - 1);
+      positions[i * 3] = radius * Math.sin(phi) * Math.cos(theta);
+      positions[i * 3 + 1] = radius * Math.sin(phi) * Math.sin(theta);
+      positions[i * 3 + 2] = radius * Math.cos(phi);
+      phases[i] = Math.random() * Math.PI * 2;
+    }
+    return { positions, phases };
+  }, []);
+
+  // Parallax + twinkle animation
+  useFrame((state) => {
+    const time = state.clock.elapsedTime;
+
     if (distantStarsRef.current) {
-      distantStarsRef.current.rotation.y += 0.0001; // 最慢
+      distantStarsRef.current.rotation.y += 0.00008;
     }
     if (midStarsRef.current) {
-      midStarsRef.current.rotation.y += 0.0002;
+      midStarsRef.current.rotation.y += 0.00015;
     }
     if (nearStarsRef.current) {
-      nearStarsRef.current.rotation.y += 0.0003; // 最快
+      nearStarsRef.current.rotation.y += 0.00025;
     }
-    if (noiseRef.current) {
-      noiseRef.current.rotation.z += 0.00005; // 极缓慢旋转
+    if (milkyWayRef.current) {
+      milkyWayRef.current.rotation.y += 0.00005;
+    }
+
+    // Twinkle effect for bright stars
+    if (twinkleRef.current) {
+      const mat = twinkleRef.current.material as THREE.PointsMaterial;
+      // Global twinkle via opacity oscillation
+      mat.opacity = 0.5 + Math.sin(time * 1.5) * 0.3;
     }
   });
 
+  // Enhanced nebula clusters: overlapping transparent spheres for depth
+  const nebulaeClusters = useMemo(() => [
+    {
+      center: [60, 30, -120] as [number, number, number],
+      color: '#3A1F6E',
+      spheres: [
+        { offset: [0, 0, 0], size: 35, opacity: 0.05 },
+        { offset: [5, -3, 8], size: 28, opacity: 0.04 },
+        { offset: [-8, 5, -5], size: 22, opacity: 0.06 },
+        { offset: [3, 8, 3], size: 30, opacity: 0.03 },
+        { offset: [-5, -6, 10], size: 25, opacity: 0.05 },
+        { offset: [10, 2, -8], size: 20, opacity: 0.04 },
+      ],
+    },
+    {
+      center: [-80, -20, -100] as [number, number, number],
+      color: '#1F3A6E',
+      spheres: [
+        { offset: [0, 0, 0], size: 40, opacity: 0.06 },
+        { offset: [8, 5, -5], size: 32, opacity: 0.05 },
+        { offset: [-6, -8, 8], size: 28, opacity: 0.04 },
+        { offset: [4, 10, 3], size: 35, opacity: 0.03 },
+        { offset: [-10, 3, -6], size: 24, opacity: 0.06 },
+        { offset: [6, -5, 10], size: 30, opacity: 0.04 },
+      ],
+    },
+    {
+      center: [30, -50, -140] as [number, number, number],
+      color: '#6E1F3A',
+      spheres: [
+        { offset: [0, 0, 0], size: 50, opacity: 0.04 },
+        { offset: [12, -8, 5], size: 38, opacity: 0.05 },
+        { offset: [-8, 10, -10], size: 32, opacity: 0.03 },
+        { offset: [5, 5, 12], size: 42, opacity: 0.04 },
+        { offset: [-12, -5, 8], size: 28, opacity: 0.06 },
+        { offset: [8, -12, -5], size: 35, opacity: 0.03 },
+      ],
+    },
+    {
+      center: [-40, 60, -110] as [number, number, number],
+      color: '#1F6E5A',
+      spheres: [
+        { offset: [0, 0, 0], size: 30, opacity: 0.07 },
+        { offset: [6, -4, 5], size: 25, opacity: 0.05 },
+        { offset: [-5, 6, -8], size: 20, opacity: 0.06 },
+        { offset: [3, 8, 3], size: 28, opacity: 0.04 },
+        { offset: [-8, -3, 6], size: 22, opacity: 0.05 },
+        { offset: [5, 5, -5], size: 18, opacity: 0.08 },
+      ],
+    },
+    {
+      center: [100, 10, -90] as [number, number, number],
+      color: '#4A1F6E',
+      spheres: [
+        { offset: [0, 0, 0], size: 28, opacity: 0.05 },
+        { offset: [5, -5, 3], size: 22, opacity: 0.04 },
+        { offset: [-3, 4, -6], size: 18, opacity: 0.06 },
+        { offset: [8, 2, 5], size: 25, opacity: 0.03 },
+        { offset: [-6, -3, 8], size: 20, opacity: 0.05 },
+        { offset: [3, 6, -3], size: 15, opacity: 0.07 },
+      ],
+    },
+  ], []);
+
   return (
     <>
-      {/* 背景色 - 深蓝黑渐变基调 */}
-      <color attach="background" args={['#0A0E27']} />
-      <fog attach="fog" args={['#1A1F3A', 100, 200]} />
+      {/* Deep space background */}
+      <color attach="background" args={['#030510']} />
+      <fog attach="fog" args={['#0A0F20', 100, 250]} />
 
-      {/* 远景粒子（最远层，最少数量） */}
+      {/* Distant stars - warm tones */}
       <Points
         ref={distantStarsRef}
         positions={distantStars}
@@ -108,15 +215,15 @@ export default function SpaceBackground() {
       >
         <PointMaterial
           transparent
-          color="#4A5FC1" // 深蓝紫
-          size={0.15}
+          color="#FFE4B5"
+          size={0.12}
           sizeAttenuation={true}
           depthWrite={false}
-          opacity={0.3} // 低饱和度
+          opacity={0.25}
         />
       </Points>
 
-      {/* 中景粒子 */}
+      {/* Mid-range stars - blue-white */}
       <Points
         ref={midStarsRef}
         positions={midStars}
@@ -125,15 +232,15 @@ export default function SpaceBackground() {
       >
         <PointMaterial
           transparent
-          color="#5B8EFF" // 中蓝色
-          size={0.12}
+          color="#B8C9FF"
+          size={0.1}
           sizeAttenuation={true}
           depthWrite={false}
           opacity={0.4}
         />
       </Points>
 
-      {/* 近景粒子（最少） */}
+      {/* Near stars - bright white */}
       <Points
         ref={nearStarsRef}
         positions={nearStars}
@@ -142,57 +249,115 @@ export default function SpaceBackground() {
       >
         <PointMaterial
           transparent
-          color="#7AA2FF" // 浅蓝色
-          size={0.1}
+          color="#E0E8FF"
+          size={0.08}
           sizeAttenuation={true}
           depthWrite={false}
-          opacity={0.5}
+          opacity={0.55}
         />
       </Points>
 
-      {/* 噪声纹理层（微弱） */}
+      {/* Milky Way band */}
+      <points ref={milkyWayRef} frustumCulled={false}>
+        <bufferGeometry>
+          <bufferAttribute
+            attach="attributes-position"
+            count={milkyWayData.positions.length / 3}
+            array={milkyWayData.positions}
+            itemSize={3}
+          />
+          <bufferAttribute
+            attach="attributes-color"
+            count={milkyWayData.colors.length / 3}
+            array={milkyWayData.colors}
+            itemSize={3}
+          />
+        </bufferGeometry>
+        <pointsMaterial
+          vertexColors
+          size={0.15}
+          transparent
+          opacity={0.12}
+          sizeAttenuation={true}
+          depthWrite={false}
+          blending={THREE.AdditiveBlending}
+        />
+      </points>
+
+      {/* Twinkling bright stars */}
       <Points
-        ref={noiseRef}
-        positions={noise}
+        ref={twinkleRef}
+        positions={twinkleStars.positions}
         stride={3}
         frustumCulled={false}
       >
         <PointMaterial
           transparent
-          color="#1A1F3A" // 深蓝灰
-          size={0.05}
-          sizeAttenuation={false}
+          color="#FFFFFF"
+          size={0.4}
+          sizeAttenuation={true}
           depthWrite={false}
-          opacity={0.08} // 5-10% 噪声强度
+          opacity={0.6}
+          blending={THREE.AdditiveBlending}
         />
       </Points>
 
-      {/* 环境光 - 提高强度以支持 meshStandardMaterial */}
-      <ambientLight intensity={0.5} color="#1A2F4A" />
+      {/* Enhanced nebula clusters - overlapping transparent spheres */}
+      {nebulaeClusters.map((cluster, ci) => (
+        <group key={`nebula-${ci}`} position={cluster.center}>
+          {cluster.spheres.map((sphere, si) => (
+            <mesh
+              key={`nebula-${ci}-${si}`}
+              position={sphere.offset as [number, number, number]}
+            >
+              <sphereGeometry args={[sphere.size, 16, 16]} />
+              <meshBasicMaterial
+                color={cluster.color}
+                transparent
+                opacity={sphere.opacity}
+                side={THREE.BackSide}
+                depthWrite={false}
+                blending={THREE.AdditiveBlending}
+              />
+            </mesh>
+          ))}
+        </group>
+      ))}
 
-      {/* 主光源 - 柔和的白光（模拟远方星光） */}
+      {/* Ambient light - slightly brighter for deep space */}
+      <ambientLight intensity={0.4} color="#0A1530" />
+
+      {/* Main directional light */}
       <directionalLight
         position={[20, 20, 10]}
-        intensity={0.8}
+        intensity={0.9}
         color="#E6F1FF"
         castShadow
         shadow-mapSize-width={2048}
         shadow-mapSize-height={2048}
       />
 
-      {/* 辅助光源 - 冷色调填充光 */}
+      {/* Fill light */}
       <directionalLight
         position={[-15, -10, -10]}
-        intensity={0.3}
+        intensity={0.25}
         color="#4A5FC1"
       />
 
-      {/* 背景点光源（克制的点缀） */}
+      {/* Background point light */}
       <pointLight
         position={[0, 40, -80]}
-        intensity={0.2}
+        intensity={0.15}
         color="#5B8EFF"
         distance={120}
+      />
+
+      {/* Warm fill from milky way direction */}
+      <pointLight
+        position={[50, 0, -100]}
+        intensity={0.1}
+        color="#FFE4B5"
+        distance={150}
       />
     </>
   );

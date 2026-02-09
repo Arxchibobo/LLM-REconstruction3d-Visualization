@@ -19,8 +19,8 @@ export default function GridFloor() {
   useFrame((state) => {
     if (gridRef.current) {
       const time = state.clock.elapsedTime;
-      // 轻微的透明度脉动（0.1 ~ 0.3）
-      const opacity = 0.2 + Math.sin(time * 0.5) * 0.1;
+      // Barely visible pulsing (0.02 ~ 0.04)
+      const opacity = 0.03 + Math.sin(time * 0.5) * 0.01;
 
       if (gridRef.current.material instanceof THREE.Material) {
         gridRef.current.material.opacity = opacity;
@@ -37,10 +37,10 @@ export default function GridFloor() {
         CYBERPUNK_LAYER_COLORS.coreLayer.primary,    // 中心线颜色（青色）
         CYBERPUNK_LAYER_COLORS.background.accent     // 网格线颜色（深灰）
       ]}
-      position={[0, -15, 0]}  // 放置在场景底部
+      position={[0, -12, 0]}  // 放置在资源层下方
       rotation={[0, 0, 0]}
       material-transparent={true}
-      material-opacity={0.2}
+      material-opacity={0.03}
     />
   );
 }
