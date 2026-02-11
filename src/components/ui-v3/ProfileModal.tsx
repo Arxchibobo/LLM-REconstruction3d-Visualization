@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import { X, User, Shield, Calendar, Save, Check } from 'lucide-react';
 import { useAuthStore } from '@/stores/useAuthStore';
+import { useLanguageStore } from '@/stores/useLanguageStore';
+import { getTranslation } from '@/i18n/translations';
 
 interface ProfileModalProps {
   isOpen: boolean;
@@ -11,9 +13,13 @@ interface ProfileModalProps {
 
 export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
   const { currentUser, updateProfile } = useAuthStore();
+  const { language } = useLanguageStore();
   const [editingName, setEditingName] = useState(false);
   const [newName, setNewName] = useState(currentUser?.displayName ?? '');
   const [saved, setSaved] = useState(false);
+
+  // Translation helper
+  const t = (key: string) => getTranslation(language, key);
 
   if (!isOpen || !currentUser) return null;
 
@@ -27,9 +33,9 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
   };
 
   const roleLabels: Record<string, string> = {
-    admin: '管理员',
-    developer: '开发者',
-    viewer: '访客',
+    admin: t('profile.roleAdmin'),
+    developer: 'Developer',
+    viewer: t('profile.roleViewer'),
   };
 
   const roleColors: Record<string, string> = {
@@ -47,7 +53,7 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
       <div className="relative w-full max-w-md bg-[#0F172A] border border-[#1E293B] rounded-xl shadow-2xl shadow-[#00FFFF]/10 overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 bg-gradient-to-r from-[#00FFFF]/10 to-[#FF00FF]/10 border-b border-[#1E293B]">
-          <h2 className="text-lg font-semibold text-white">个人资料</h2>
+          <h2 className="text-lg font-semibold text-white">{t('profile.title')}</h2>
           <button
             onClick={onClose}
             className="p-1 text-gray-400 hover:text-white transition-colors"
@@ -106,7 +112,7 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
                     }}
                     className="text-xs text-gray-500 hover:text-[#00FFFF] transition-colors"
                   >
-                    编辑
+                    {t('common.edit')}
                   </button>
                 </div>
               )}
@@ -120,7 +126,7 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
             <div className="flex items-center gap-3 p-3 bg-[#1E293B] rounded-lg">
               <Shield className="w-4 h-4" style={{ color: roleColors[currentUser.role] }} />
               <div className="flex-1">
-                <p className="text-xs text-gray-500">角色</p>
+                <p className="text-xs text-gray-500">{t('profile.role')}</p>
                 <p className="text-sm font-medium" style={{ color: roleColors[currentUser.role] }}>
                   {roleLabels[currentUser.role]}
                 </p>
@@ -131,7 +137,7 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
             <div className="flex items-center gap-3 p-3 bg-[#1E293B] rounded-lg">
               <User className="w-4 h-4 text-gray-400" />
               <div className="flex-1">
-                <p className="text-xs text-gray-500">用户 ID</p>
+                <p className="text-xs text-gray-500">{t('profile.username')}</p>
                 <p className="text-sm font-mono text-gray-300">{currentUser.id}</p>
               </div>
             </div>
@@ -140,7 +146,7 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
             <div className="flex items-center gap-3 p-3 bg-[#1E293B] rounded-lg">
               <Calendar className="w-4 h-4 text-gray-400" />
               <div className="flex-1">
-                <p className="text-xs text-gray-500">加入日期</p>
+                <p className="text-xs text-gray-500">{t('profile.joinedAt')}</p>
                 <p className="text-sm text-gray-300">{currentUser.joinedAt}</p>
               </div>
             </div>
@@ -153,7 +159,7 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
             onClick={onClose}
             className="px-4 py-2 text-sm text-gray-400 hover:text-white bg-[#1E293B] hover:bg-[#334155] rounded-lg transition-colors"
           >
-            关闭
+            {t('common.close')}
           </button>
         </div>
       </div>
