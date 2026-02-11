@@ -7,6 +7,8 @@ import {
   PanelLeftClose, PanelLeftOpen,
 } from 'lucide-react';
 import { useWorkspaceStore } from '@/stores/useWorkspaceStore';
+import { useLanguageStore } from '@/stores/useLanguageStore';
+import { getTranslation } from '@/i18n/translations';
 import type { ModuleType, WorkspaceModule } from '@/types/workspace';
 
 const MODULE_TYPE_META: Record<ModuleType, { label: string; color: string; Icon: React.ElementType }> = {
@@ -87,8 +89,12 @@ export default function ModulePalette() {
     selectedModules,
     clearModuleSelection,
   } = useWorkspaceStore();
+  const { language } = useLanguageStore();
 
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+
+  // Translation helper
+  const t = (key: string) => getTranslation(language, key);
 
   const filteredModules = getFilteredPaletteModules();
 
@@ -138,7 +144,7 @@ export default function ModulePalette() {
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-[#1E293B]">
         <h2 className="text-sm font-bold text-[#00FFFF] font-mono tracking-wider">
-          MODULES
+          {t('workspace.modules')}
         </h2>
         <button
           onClick={() => setPaletteOpen(false)}
@@ -154,7 +160,7 @@ export default function ModulePalette() {
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500" />
           <input
             type="text"
-            placeholder="搜索模块..."
+            placeholder={t('workspace.searchModules')}
             value={paletteSearch}
             onChange={(e) => setPaletteSearch(e.target.value)}
             className="
@@ -174,17 +180,17 @@ export default function ModulePalette() {
         <div className="px-3 py-2 bg-[#00FFFF]/10 border-b border-[#00FFFF]/30">
           <div className="flex items-center justify-between text-xs">
             <span className="text-[#00FFFF]">
-              {selectedModules.size} module{selectedModules.size > 1 ? 's' : ''} selected
+              {selectedModules.size} {selectedModules.size > 1 ? t('workspace.selectedModules') : t('workspace.selectedModule')}
             </span>
             <button
               onClick={clearModuleSelection}
               className="text-gray-400 hover:text-white transition-colors"
             >
-              Clear
+              {t('workspace.clear')}
             </button>
           </div>
           <div className="text-[10px] text-gray-400 mt-0.5">
-            Shift+Click to multi-select • Drag to batch add
+            {t('workspace.multiSelectHint')}
           </div>
         </div>
       )}
@@ -201,7 +207,7 @@ export default function ModulePalette() {
             }
           `}
         >
-          All
+          {t('common.all')}
         </button>
         {MODULE_TYPES.map((type) => {
           const meta = MODULE_TYPE_META[type];
@@ -234,7 +240,7 @@ export default function ModulePalette() {
         {modulesLoading ? (
           <div className="flex items-center justify-center h-32">
             <div className="text-sm text-gray-500 font-mono animate-pulse">
-              Loading modules...
+              {t('common.loading')}
             </div>
           </div>
         ) : (

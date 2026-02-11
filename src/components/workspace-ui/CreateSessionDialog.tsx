@@ -4,6 +4,8 @@ import { useState, useRef, useEffect } from 'react';
 import { X, Plus } from 'lucide-react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { useWorkspaceStore } from '@/stores/useWorkspaceStore';
+import { useLanguageStore } from '@/stores/useLanguageStore';
+import { getTranslation } from '@/i18n/translations';
 
 interface CreateSessionDialogProps {
   open: boolean;
@@ -21,6 +23,10 @@ export default function CreateSessionDialog({
   const [description, setDescription] = useState('');
   const nameInputRef = useRef<HTMLInputElement>(null);
   const { createSession, addModuleToSession } = useWorkspaceStore();
+  const { language } = useLanguageStore();
+
+  // Translation helper
+  const t = (key: string) => getTranslation(language, key);
 
   useEffect(() => {
     if (open) {
@@ -74,13 +80,13 @@ export default function CreateSessionDialog({
           "
         >
           <Dialog.Description className="sr-only">
-            Create a new workspace session to organize modules
+            {t('createSession.title')}
           </Dialog.Description>
 
           {/* Header */}
           <div className="flex items-center justify-between mb-6">
             <Dialog.Title className="text-lg font-bold text-white font-mono tracking-wider">
-              NEW SESSION
+              {t('createSession.title')}
             </Dialog.Title>
             <Dialog.Close asChild>
               <button className="p-1 text-gray-500 hover:text-gray-300 transition-colors">
@@ -93,7 +99,7 @@ export default function CreateSessionDialog({
           <div className="space-y-4">
             <div>
               <label className="block text-xs text-gray-400 font-mono mb-1.5">
-                SESSION NAME *
+                {t('createSession.sessionName')} *
               </label>
               <input
                 ref={nameInputRef}
@@ -101,7 +107,7 @@ export default function CreateSessionDialog({
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="e.g. API Development"
+                placeholder={t('createSession.namePlaceholder')}
                 className="
                   w-full px-4 py-2.5
                   bg-[#1E293B] border border-[#2D3B4F]
@@ -115,12 +121,12 @@ export default function CreateSessionDialog({
 
             <div>
               <label className="block text-xs text-gray-400 font-mono mb-1.5">
-                REQUIREMENT (optional)
+                {t('createSession.requirement')}
               </label>
               <textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="描述你要解决的问题..."
+                placeholder={t('createSession.requirementPlaceholder')}
                 rows={3}
                 className="
                   w-full px-4 py-2.5
@@ -136,7 +142,7 @@ export default function CreateSessionDialog({
             {pendingModuleId && (
               <div className="px-3 py-2 bg-[#00FFFF]/5 border border-[#00FFFF]/20 rounded-lg">
                 <p className="text-xs text-[#00FFFF] font-mono">
-                  Module &quot;{pendingModuleId}&quot; will be auto-added
+                  {t('createSession.autoAddHint').replace('{moduleId}', pendingModuleId)}
                 </p>
               </div>
             )}
@@ -150,7 +156,7 @@ export default function CreateSessionDialog({
                 hover:text-gray-200 transition-colors
                 font-mono
               ">
-                Cancel
+                {t('common.cancel')}
               </button>
             </Dialog.Close>
             <button
@@ -167,7 +173,7 @@ export default function CreateSessionDialog({
               "
             >
               <Plus className="w-4 h-4" />
-              Create
+              {t('common.create')}
             </button>
           </div>
         </Dialog.Content>

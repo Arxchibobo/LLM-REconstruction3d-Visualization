@@ -5,6 +5,8 @@ import { useFrame } from '@react-three/fiber';
 import { Text, Billboard, Line } from '@react-three/drei';
 import * as THREE from 'three';
 import { useKnowledgeStore } from '@/stores/useKnowledgeStore';
+import { useLanguageStore } from '@/stores/useLanguageStore';
+import { getTranslation } from '@/i18n/translations';
 
 interface HooksLayerDetailProps {
   layoutPosition?: [number, number, number];
@@ -19,6 +21,10 @@ export default function HooksLayerDetail({ layoutPosition }: HooksLayerDetailPro
   const groupRef = useRef<THREE.Group>(null);
   const particlesRef = useRef<THREE.Points>(null);
   const { selectedNode, hoveredNode } = useKnowledgeStore();
+  const { language } = useLanguageStore();
+
+  // Translation helper
+  const t = (key: string) => getTranslation(language, key);
 
   const isVisible =
     selectedNode?.id === 'category-hooks' || hoveredNode?.id === 'category-hooks';
@@ -34,27 +40,27 @@ export default function HooksLayerDetail({ layoutPosition }: HooksLayerDetailPro
     () => [
       {
         id: 'pre-tool-use',
-        label: 'PreToolUse',
-        description: 'Before tool execution',
+        label: t('v3.scene.preToolUse'),
+        description: t('v3.scene.preToolUseDesc'),
         color: '#00FFFF',
         offset: [0, 3.5, 0] as [number, number, number],
       },
       {
         id: 'post-tool-use',
-        label: 'PostToolUse',
-        description: 'After tool execution',
+        label: t('v3.scene.postToolUse'),
+        description: t('v3.scene.postToolUseDesc'),
         color: '#FF00FF',
         offset: [-3.0, -1.8, 0] as [number, number, number],
       },
       {
         id: 'stop',
-        label: 'Stop',
-        description: 'Session end verification',
+        label: t('v3.scene.stop'),
+        description: t('v3.scene.stopDesc'),
         color: '#FFA500',
         offset: [3.0, -1.8, 0] as [number, number, number],
       },
     ],
-    []
+    [language]
   );
 
   // Flow particles along connections
@@ -198,7 +204,7 @@ export default function HooksLayerDetail({ layoutPosition }: HooksLayerDetailPro
           outlineColor="#000000"
           font="/fonts/inter-bold.woff"
         >
-          Hook Architecture
+          {t('v3.scene.hooksArchitecture')}
         </Text>
       </Billboard>
     </group>

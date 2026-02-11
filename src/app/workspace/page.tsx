@@ -10,6 +10,8 @@ import WorkspaceStatusBar from '@/components/workspace-ui/WorkspaceStatusBar';
 import CreateSessionDialog from '@/components/workspace-ui/CreateSessionDialog';
 import { useWorkspaceStore } from '@/stores/useWorkspaceStore';
 import { useAuthStore } from '@/stores/useAuthStore';
+import { useLanguageStore } from '@/stores/useLanguageStore';
+import { getTranslation } from '@/i18n/translations';
 import { screenToWorld, findNearestSession } from '@/utils/workspaceRaycast';
 
 // Dynamic import for 3D scene (no SSR)
@@ -21,6 +23,7 @@ const WorkspaceScene3D = dynamic(
 export default function WorkspacePage() {
   const router = useRouter();
   const { isAuthenticated } = useAuthStore();
+  const { language } = useLanguageStore();
 
   const {
     loadModules,
@@ -38,6 +41,9 @@ export default function WorkspacePage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [pendingModuleId, setPendingModuleId] = useState<string | null>(null);
   const canvasContainerRef = useRef<HTMLDivElement>(null);
+
+  // Translation helper
+  const t = (key: string) => getTranslation(language, key);
 
   // Auth guard - redirect to login if not authenticated
   useEffect(() => {
@@ -188,7 +194,7 @@ export default function WorkspacePage() {
                 bg-[#0F172A]/80 border border-[#00FFFF]/30
                 text-[#00FFFF] text-sm font-mono
               ">
-                Drop to create new session
+                {t('workspace.dropToCreate')}
               </div>
             </div>
           )}

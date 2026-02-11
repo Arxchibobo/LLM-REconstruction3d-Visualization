@@ -4,15 +4,21 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Box, LogIn, Eye, EyeOff } from 'lucide-react';
 import { useAuthStore, DEMO_USERS } from '@/stores/useAuthStore';
+import { useLanguageStore } from '@/stores/useLanguageStore';
+import { getTranslation } from '@/i18n/translations';
 
 export default function LoginPage() {
   const router = useRouter();
   const { login, isAuthenticated, loginError, clearError } = useAuthStore();
+  const { language } = useLanguageStore();
 
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+
+  // Translation helper
+  const t = (key: string) => getTranslation(language, key);
 
   // Redirect if already authenticated
   useEffect(() => {
@@ -65,15 +71,15 @@ export default function LoginPage() {
             <Box className="w-9 h-9 text-[#0A1929]" />
           </div>
           <h1 className="text-2xl font-bold text-[#00FFFF]">KnowGraph</h1>
-          <p className="text-sm text-gray-400 mt-1">工程化调用可视化系统</p>
+          <p className="text-sm text-gray-400 mt-1">{t('topBar.subtitle')}</p>
         </div>
 
         {/* Login Card */}
         <div className="bg-[#0F172A] border border-[#1E293B] rounded-xl shadow-2xl shadow-[#00FFFF]/5 overflow-hidden">
           {/* Header */}
           <div className="bg-gradient-to-r from-[#00FFFF]/10 to-[#FF00FF]/10 px-6 py-4 border-b border-[#1E293B]">
-            <h2 className="text-lg font-semibold text-white">登录</h2>
-            <p className="text-xs text-gray-400 mt-0.5">请输入账号密码以访问系统</p>
+            <h2 className="text-lg font-semibold text-white">{t('login.title')}</h2>
+            <p className="text-xs text-gray-400 mt-0.5">{t('login.subtitle')}</p>
           </div>
 
           {/* Form */}
@@ -81,7 +87,7 @@ export default function LoginPage() {
             {/* Username */}
             <div>
               <label className="block text-xs font-medium text-gray-400 mb-1.5">
-                用户名
+                {t('login.username')}
               </label>
               <input
                 type="text"
@@ -90,7 +96,7 @@ export default function LoginPage() {
                   setUsername(e.target.value);
                   clearError();
                 }}
-                placeholder="输入用户名"
+                placeholder={t('login.usernamePlaceholder')}
                 className="w-full h-10 px-3 bg-[#1E293B] border border-[#334155] rounded-lg text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-[#00FFFF] focus:ring-1 focus:ring-[#00FFFF]/30 transition-all"
                 autoFocus
               />
@@ -99,7 +105,7 @@ export default function LoginPage() {
             {/* Password */}
             <div>
               <label className="block text-xs font-medium text-gray-400 mb-1.5">
-                密码
+                {t('login.password')}
               </label>
               <div className="relative">
                 <input
@@ -109,7 +115,7 @@ export default function LoginPage() {
                     setPassword(e.target.value);
                     clearError();
                   }}
-                  placeholder="输入密码"
+                  placeholder={t('login.passwordPlaceholder')}
                   className="w-full h-10 px-3 pr-10 bg-[#1E293B] border border-[#334155] rounded-lg text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-[#00FFFF] focus:ring-1 focus:ring-[#00FFFF]/30 transition-all"
                 />
                 <button
@@ -144,7 +150,7 @@ export default function LoginPage() {
               ) : (
                 <>
                   <LogIn className="w-4 h-4" />
-                  登录
+                  {t('login.loginButton')}
                 </>
               )}
             </button>
@@ -153,7 +159,7 @@ export default function LoginPage() {
           {/* Quick login section */}
           <div className="px-6 pb-6">
             <div className="border-t border-[#1E293B] pt-4">
-              <p className="text-xs text-gray-500 mb-3">快速登录（演示账号）</p>
+              <p className="text-xs text-gray-500 mb-3">{t('login.quickLogin')}</p>
               <div className="grid grid-cols-3 gap-2">
                 {DEMO_USERS.map((user) => (
                   <button
@@ -172,10 +178,10 @@ export default function LoginPage() {
                     </span>
                     <span className="text-[10px] text-gray-600">
                       {user.role === 'admin'
-                        ? '管理员'
+                        ? t('topBar.admin')
                         : user.role === 'developer'
-                          ? '开发者'
-                          : '访客'}
+                          ? 'Developer'
+                          : t('topBar.viewer')}
                     </span>
                   </button>
                 ))}

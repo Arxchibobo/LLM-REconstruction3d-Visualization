@@ -3,6 +3,8 @@
 import { Plus, ArrowLeft, Boxes } from 'lucide-react';
 import Link from 'next/link';
 import { useWorkspaceStore } from '@/stores/useWorkspaceStore';
+import { useLanguageStore } from '@/stores/useLanguageStore';
+import { getTranslation } from '@/i18n/translations';
 
 interface WorkspaceTopBarProps {
   onCreateSession: () => void;
@@ -10,6 +12,10 @@ interface WorkspaceTopBarProps {
 
 export default function WorkspaceTopBar({ onCreateSession }: WorkspaceTopBarProps) {
   const { sessions } = useWorkspaceStore();
+  const { language } = useLanguageStore();
+
+  // Translation helper
+  const t = (key: string) => getTranslation(language, key);
 
   return (
     <header
@@ -41,14 +47,14 @@ export default function WorkspaceTopBar({ onCreateSession }: WorkspaceTopBarProp
           <div className="flex items-center gap-2">
             <Boxes className="w-5 h-5 text-[#FF00FF]" />
             <h1 className="text-lg font-bold text-white font-mono tracking-wider">
-              WORKSPACE
+              {t('workspace.title').toUpperCase()}
             </h1>
           </div>
         </div>
 
         {/* Center: Session count */}
         <div className="flex items-center gap-3 text-sm font-mono">
-          <span className="text-gray-500">Sessions:</span>
+          <span className="text-gray-500">{t('workspace.statusBar.totalSessions')}:</span>
           <span className="text-[#00FFFF] font-bold">{sessions.length}</span>
         </div>
 
@@ -66,7 +72,7 @@ export default function WorkspaceTopBar({ onCreateSession }: WorkspaceTopBarProp
             "
           >
             <Plus className="w-4 h-4" />
-            New Session
+            {t('workspace.createSession')}
           </button>
         </div>
       </div>

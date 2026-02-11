@@ -2,9 +2,15 @@
 
 import { Activity, Box, Layers } from 'lucide-react';
 import { useWorkspaceStore } from '@/stores/useWorkspaceStore';
+import { useLanguageStore } from '@/stores/useLanguageStore';
+import { getTranslation } from '@/i18n/translations';
 
 export default function WorkspaceStatusBar() {
   const { sessions, modules } = useWorkspaceStore();
+  const { language } = useLanguageStore();
+
+  // Translation helper
+  const t = (key: string) => getTranslation(language, key);
 
   const totalModulesPlaced = sessions.reduce((sum, s) => sum + s.moduleIds.length, 0);
   const draftingCount = sessions.filter((s) => s.status === 'drafting').length;
@@ -24,15 +30,15 @@ export default function WorkspaceStatusBar() {
         <div className="flex items-center gap-6 text-gray-400">
           <div className="flex items-center gap-1.5">
             <Layers className="w-3.5 h-3.5 text-[#00FFFF]" />
-            <span>Sessions: <span className="text-[#00FFFF]">{sessions.length}</span></span>
+            <span>{t('workspace.statusBar.totalSessions')}: <span className="text-[#00FFFF]">{sessions.length}</span></span>
           </div>
           <div className="w-px h-3 bg-[#1E293B]" />
           <div className="flex items-center gap-1.5">
             <Box className="w-3.5 h-3.5 text-[#FF00FF]" />
-            <span>Modules: <span className="text-[#FF00FF]">{totalModulesPlaced}</span></span>
+            <span>{t('workspace.statusBar.totalModules')}: <span className="text-[#FF00FF]">{totalModulesPlaced}</span></span>
           </div>
           <div className="w-px h-3 bg-[#1E293B]" />
-          <span>Available: <span className="text-gray-300">{modules.length}</span></span>
+          <span>{t('workspace.statusBar.activeModules')}: <span className="text-gray-300">{modules.length}</span></span>
         </div>
 
         {/* Right: Status breakdown */}
@@ -50,7 +56,7 @@ export default function WorkspaceStatusBar() {
             <span>Completed: <span className="text-green-400">{completedCount}</span></span>
           )}
           <div className="w-px h-3 bg-[#1E293B]" />
-          <span className="text-gray-500">Workspace v1.0</span>
+          <span className="text-gray-500">{t('workspace.title')} v1.0</span>
         </div>
       </div>
     </footer>
