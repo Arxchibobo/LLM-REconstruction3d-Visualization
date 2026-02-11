@@ -6,12 +6,16 @@ import { Group, Mesh, AdditiveBlending, BackSide, DoubleSide } from 'three';
 import { useKnowledgeStore } from '@/stores/useKnowledgeStore';
 import { useSpring, animated } from '@react-spring/three';
 
+interface CenterRobotProps {
+  enableAnimations?: boolean;
+}
+
 /**
  * CenterRobot - Visually impressive robot at the origin representing Claude Code.
  * Features: chrome head, glass visor, energy core, holographic rings,
  * orbiting data particles, floating shield hexagons, and signal pulses.
  */
-export default function CenterRobot() {
+export default function CenterRobot({ enableAnimations = true }: CenterRobotProps) {
   const robotRef = useRef<Group>(null);
   const ring1Ref = useRef<Mesh>(null);
   const ring2Ref = useRef<Mesh>(null);
@@ -69,6 +73,8 @@ export default function CenterRobot() {
   const lastPulseState = useRef(false);
 
   useFrame((state) => {
+    if (!enableAnimations) return;
+
     const time = state.clock.elapsedTime;
 
     // Gentle Y-axis bobbing

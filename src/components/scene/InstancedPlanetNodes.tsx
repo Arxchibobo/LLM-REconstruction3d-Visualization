@@ -16,12 +16,13 @@ import { useKnowledgeStore } from '@/stores/useKnowledgeStore';
 
 interface InstancedPlanetNodesProps {
   nodes: KnowledgeNode[];
+  enableAnimations?: boolean;
 }
 
 const tempObject = new Object3D();
 const tempColor = new Color();
 
-export default function InstancedPlanetNodes({ nodes }: InstancedPlanetNodesProps) {
+export default function InstancedPlanetNodes({ nodes, enableAnimations = true }: InstancedPlanetNodesProps) {
   const planetRef = useRef<InstancedMesh>(null);
   const atmosphereRef = useRef<InstancedMesh>(null);
   const { hoveredNode, selectedNode, setSelectedNode, setHoveredNode, connections } = useKnowledgeStore();
@@ -113,7 +114,7 @@ export default function InstancedPlanetNodes({ nodes }: InstancedPlanetNodesProp
 
   // Floating animation
   useFrame((state) => {
-    if (!planetRef.current) return;
+    if (!planetRef.current || !enableAnimations) return;
 
     const time = state.clock.elapsedTime;
 

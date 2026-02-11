@@ -12,6 +12,7 @@ import { starSurfaceShader, planetSurfaceShader, atmosphereGlowShader } from '@/
 
 interface PlanetNodeProps {
   node: KnowledgeNode;
+  enableAnimations?: boolean;
 }
 
 /** Deterministic hash from node id to decide rings, tilt, etc. */
@@ -23,7 +24,7 @@ function hashCode(s: string): number {
   return Math.abs(h);
 }
 
-export default function PlanetNode({ node }: PlanetNodeProps) {
+export default function PlanetNode({ node, enableAnimations = true }: PlanetNodeProps) {
   const groupRef = useRef<Group>(null);
   const planetRef = useRef<Mesh>(null);
   const coronaRef = useRef<Mesh>(null);
@@ -151,6 +152,9 @@ export default function PlanetNode({ node }: PlanetNodeProps) {
       planetMatRef.current.uniforms.uTime.value = time;
       planetMatRef.current.uniforms.uIntensity.value = isDimmed ? 0.5 : 1.5;
     }
+
+    // Skip animations if disabled in settings
+    if (!enableAnimations) return;
 
     // Gentle floating
     if (groupRef.current && !isSelected) {

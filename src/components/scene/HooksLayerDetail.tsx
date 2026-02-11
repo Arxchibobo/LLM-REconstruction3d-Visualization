@@ -29,6 +29,7 @@ export default function HooksLayerDetail({ layoutPosition }: HooksLayerDetailPro
   );
 
   // Three hook types arranged in a triangle around the center
+  // Increased offsets to prevent text overlap
   const hookTypes = useMemo(
     () => [
       {
@@ -36,21 +37,21 @@ export default function HooksLayerDetail({ layoutPosition }: HooksLayerDetailPro
         label: 'PreToolUse',
         description: 'Before tool execution',
         color: '#00FFFF',
-        offset: [0, 2.5, 0] as [number, number, number],
+        offset: [0, 3.5, 0] as [number, number, number],
       },
       {
         id: 'post-tool-use',
         label: 'PostToolUse',
         description: 'After tool execution',
         color: '#FF00FF',
-        offset: [-2.2, -1.2, 0] as [number, number, number],
+        offset: [-3.0, -1.8, 0] as [number, number, number],
       },
       {
         id: 'stop',
         label: 'Stop',
         description: 'Session end verification',
         color: '#FFA500',
-        offset: [2.2, -1.2, 0] as [number, number, number],
+        offset: [3.0, -1.8, 0] as [number, number, number],
       },
     ],
     []
@@ -92,7 +93,8 @@ export default function HooksLayerDetail({ layoutPosition }: HooksLayerDetailPro
   return (
     <group
       ref={groupRef}
-      position={[centerPos[0], centerPos[1] + 3, centerPos[2]]}
+      position={[centerPos[0], centerPos[1] + 8, centerPos[2]]}
+      renderOrder={999}
     >
       {/* Hook type nodes */}
       {hookTypes.map((hook) => (
@@ -123,22 +125,25 @@ export default function HooksLayerDetail({ layoutPosition }: HooksLayerDetailPro
           {/* Label */}
           <Billboard>
             <Text
-              position={[0, 0.8, 0]}
-              fontSize={0.35}
+              position={[0, 1.1, 0]}
+              fontSize={0.4}
               color={hook.color}
               anchorX="center"
               anchorY="bottom"
-              outlineWidth={0.05}
+              outlineWidth={0.06}
               outlineColor="#000000"
+              font="/fonts/inter-bold.woff"
             >
               {hook.label}
             </Text>
             <Text
-              position={[0, 0.45, 0]}
-              fontSize={0.18}
-              color="#AAAAAA"
+              position={[0, 0.6, 0]}
+              fontSize={0.22}
+              color="#CCCCCC"
               anchorX="center"
               anchorY="bottom"
+              outlineWidth={0.03}
+              outlineColor="#000000"
             >
               {hook.description}
             </Text>
@@ -184,13 +189,14 @@ export default function HooksLayerDetail({ layoutPosition }: HooksLayerDetailPro
       {/* Center label */}
       <Billboard>
         <Text
-          position={[0, -2.5, 0]}
-          fontSize={0.25}
+          position={[0, -3.5, 0]}
+          fontSize={0.3}
           color="#EF4444"
           anchorX="center"
           anchorY="top"
-          outlineWidth={0.03}
+          outlineWidth={0.04}
           outlineColor="#000000"
+          font="/fonts/inter-bold.woff"
         >
           Hook Architecture
         </Text>

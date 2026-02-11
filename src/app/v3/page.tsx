@@ -2,12 +2,14 @@
 
 import dynamic from 'next/dynamic';
 import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import ModernTopBar from '@/components/ui-v3/ModernTopBar';
 import ModernLeftPanel from '@/components/ui-v3/ModernLeftPanel';
 import ModernRightPanel from '@/components/ui-v3/ModernRightPanel';
 import ModernStatusBar from '@/components/ui-v3/ModernStatusBar';
 import Minimap from '@/components/ui-v3/Minimap';
 import { useKnowledgeStore } from '@/stores/useKnowledgeStore';
+import { useAuthStore } from '@/stores/useAuthStore';
 
 // 动态导入 3D 场景组件（避免 SSR 问题）
 const Scene3D = dynamic(() => import('@/components/scene/Scene'), { ssr: false });
@@ -18,7 +20,16 @@ const Scene3D = dynamic(() => import('@/components/scene/Scene'), { ssr: false }
  * 配色：深蓝黑背景 + 青色/品红/橙色霓虹
  */
 export default function V3HomePage() {
+  const router = useRouter();
   const { loadClaudeConfig } = useKnowledgeStore();
+  const { isAuthenticated } = useAuthStore();
+
+  // Auth guard - redirect to login if not authenticated
+  useEffect(() => {
+    if (!isAuthenticated) {
+      router.replace('/login');
+    }
+  }, [isAuthenticated, router]);
 
   // Load Claude config on mount - path is auto-detected from environment
   useEffect(() => {
@@ -27,6 +38,15 @@ export default function V3HomePage() {
       console.error('Failed to load Claude config:', error);
     });
   }, []);
+
+  // Don't render until auth check completes
+  if (!isAuthenticated) {
+    return (
+      <div className="w-screen h-screen bg-[#0A1929] flex items-center justify-center">
+        <div className="text-gray-400">Loading...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="relative w-screen h-screen overflow-hidden bg-[#0A1929]">

@@ -5,6 +5,7 @@ import { useFrame } from '@react-three/fiber';
 import { Group, Vector3 } from 'three';
 import { QuadraticBezierLine, Line } from '@react-three/drei';
 import { useKnowledgeStore } from '@/stores/useKnowledgeStore';
+import { useSettingsStore } from '@/stores/useSettingsStore';
 import {
   computeRadialLayout,
   computeSphereLayout,
@@ -111,6 +112,9 @@ export default function KnowledgeGraph() {
     enabledNodeTypes,
     setLayoutNodeMap
   } = useKnowledgeStore();
+
+  // Read settings for visual effects
+  const { showParticles, showGridFloor, enableAnimations } = useSettingsStore();
 
   // 搜索和类型过滤节点
   const filteredNodes = useMemo(() => {
@@ -311,12 +315,12 @@ export default function KnowledgeGraph() {
   return (
     <>
       {/* 🌌 背景增强效果 */}
-      <ParticleField />
-      <GridFloor />
+      {showParticles && <ParticleField />}
+      {showGridFloor && <GridFloor />}
       <HooksLayerDetail layoutPosition={layout.nodeMap['category-hooks']?.position} />
 
       {/* 中心机器人 */}
-      <CenterRobot />
+      <CenterRobot enableAnimations={enableAnimations} />
 
       {/* 🔗 优雅的连接线系统 */}
       {visibleConnections.map((conn, index) => {
@@ -467,12 +471,12 @@ export default function KnowledgeGraph() {
       <group ref={groupRef}>
         {/* Full PlanetNode for core/tool/hovered/selected/connected nodes */}
         {fullRenderNodes.map((node) => (
-            <PlanetNode key={node.id} node={node} />
+            <PlanetNode key={node.id} node={node} enableAnimations={enableAnimations} />
           ))}
 
         {/* Instanced rendering for remaining resource nodes */}
         {instancedNodes.length > 0 && (
-          <InstancedPlanetNodes nodes={instancedNodes} />
+          <InstancedPlanetNodes nodes={instancedNodes} enableAnimations={enableAnimations} />
         )}
       </group>
 
