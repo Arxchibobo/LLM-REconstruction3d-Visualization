@@ -1,274 +1,141 @@
-# LLM REconstruction3D Visualization
+# LLM-REconstruction3d-Visualization
 
-A 3D visualization tool for **Claude Code** and AI development workflows. Features an interactive knowledge graph, workspace session manager, and drag-and-drop module composition in a cyberpunk-themed 3D environment.
+> An interactive 3D knowledge graph and workspace manager for visualizing Claude Code configurations and AI development workflows.
 
-![Demo](docs/images/demo-claude-config-mode.png)
+[![Next.js](https://img.shields.io/badge/Next.js-14.2-black?logo=next.js)](https://nextjs.org/)
+[![Three.js](https://img.shields.io/badge/Three.js-0.161-049ef4?logo=three.js)](https://threejs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.3-3178c6?logo=typescript)](https://www.typescriptlang.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 
-## ✨ Features
+## Overview
 
-### 🔐 Authentication System
-- **Demo Accounts**: Bobo (Admin), Admin (Admin), Guest (Viewer)
-- **Quick Login**: One-click access with pre-configured accounts
-- **Persistent Sessions**: Auto-save login state
-- **Access Control**: Role-based permissions (Admin, Developer, Viewer)
+LLM-REconstruction3d-Visualization is a full-stack web application that renders your Claude Code configuration as an immersive, interactive 3D scene. It reads your local `~/.claude` workspace — skills, MCPs, plugins, hooks, rules, agents, and memory — and maps them into an orbital knowledge graph with real-time interaction, physics-based layouts, and post-processing visual effects.
 
-### 🌐 3D Knowledge Graph (`/v3`)
-Visualize your Claude Code configuration as an interactive 3D space:
+A second view, the **Workspace Session Manager**, lets you compose AI workflow sessions through drag-and-drop: pull modules from a palette onto a 3D canvas, get AI-powered recommendations, and track session status from draft through completion.
 
-- **Center Node**: Claude Code core
-- **Category Orbits**: Skills, MCP Servers, Plugins, Hooks, Rules, Agents, Memory
-- **Interactive Nodes**: Hover for details, click for focus
-- **Dynamic Layout**: Orbital positioning with engineering-grade spacing
-- **Hooks Layer**: Dedicated visualization for PreToolUse, PostToolUse, Stop hooks
-- **Real-time Updates**: Auto-sync with config changes
+Built with a cyberpunk aesthetic (neon colors, bloom effects, particle fields), it targets Claude Code power users who want a spatial overview of complex configurations.
 
-**Navigation**:
-- 🖱️ **Rotate**: Left-click + drag
-- 🔍 **Zoom**: Mouse wheel
-- 🎯 **Focus**: Click nodes for details
-- 🎨 **Theme**: Cyberpunk neon colors with bloom effects
+## Features
 
-### 🛠️ Workspace Session Manager (`/workspace`)
-**NEW**: Drag-and-drop workflow builder for AI development sessions.
+- **3D Knowledge Graph** — Center node (Claude Code core) surrounded by seven category orbits (Skills, MCPs, Plugins, Hooks, Rules, Agents, Memory) with hover/click interactions and attention-flow highlighting
+- **Multiple Layout Algorithms** — Switch between orbital, force-directed, circular, grid, and hierarchical layouts powered by D3-force-3d physics simulation
+- **Hooks Layer Visualization** — Dedicated visual layer for PreToolUse, PostToolUse, and Stop hooks
+- **Workspace Session Manager** — Drag-and-drop module palette with HTML5 → 3D raycast bridging; create, edit, and delete sessions with status tracking (drafting → ready → running → completed/failed)
+- **AI-Powered Recommendations** — Chat interface that scores and suggests modules based on natural language input
+- **Role-Based Auth** — Three demo accounts (Admin, Developer, Viewer) with session persistence via Zustand + localStorage
+- **Internationalization** — Full English and Chinese UI coverage with a live language toggle
+- **Post-Processing Effects** — Bloom, tone mapping, particle fields, and custom GLSL shaders via `@react-three/postprocessing`
+- **Static Export + Docker** — Deployable as a static site or containerized via the included multi-stage Dockerfile
 
-**Features**:
-- **Module Palette** (left panel): Browse Skills, MCPs, Plugins, Hooks, Rules, Agents
-- **3D Canvas**: Visualize sessions as floating nodes
-- **Drag & Drop**: 
-  - Drag modules from palette → Drop on canvas
-  - Drop on existing session → Add to session
-  - Drop on empty space → Create new session
-- **Session Management**:
-  - Create/edit/delete sessions
-  - Input requirements (natural language)
-  - AI-powered module recommendations
-  - Track session status (drafting/ready/running/completed)
-- **Real-time Collaboration** (planned): Share sessions with team
+## Requirements
 
-**Use Cases**:
-- 📝 Compose AI workflows visually
-- 🧩 Build reusable module combinations
-- 🎯 Get smart recommendations based on requirements
-- 📊 Track project sessions and progress
+- Node.js 18+ (v20 recommended)
+- npm 8+
 
-### 🌍 Internationalization
-- **Languages**: English, 中文 (Chinese)
-- **Dynamic Switching**: Language selector in UI
-- **Full Coverage**: All UI elements translated
-
-## 🚀 Quick Start
-
-### Prerequisites
-- Node.js 18+ 
-- npm or yarn
-
-### Installation
+## Installation
 
 ```bash
-# Clone repository
 git clone https://github.com/Arxchibobo/LLM-REconstruction3d-Visualization.git
 cd LLM-REconstruction3d-Visualization
 
-# Install dependencies
 npm install
 
-# Create environment file
 cp .env.example .env.local
-
-# Start development server
-npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) in your browser.
-
-### Login
-Use any of these demo accounts:
-
-| Username | Password | Role | Access |
-|----------|----------|------|--------|
-| **Bobo** | `bobo123` | Admin | Full access |
-| **Admin** | `admin123` | Admin | Full access |
-| **Guest** | `guest` | Viewer | Read-only |
-
-**Quick Login**: Click the account avatars on the login page for instant access.
-
-## 📁 Project Structure
-
-```
-src/
-├── app/
-│   ├── page.tsx              # Redirects to /v3
-│   ├── login/page.tsx        # Authentication
-│   ├── v3/page.tsx           # 3D Knowledge Graph
-│   ├── workspace/page.tsx    # Workspace Manager (NEW)
-│   └── api/
-│       ├── claude-config/    # Config loading
-│       └── project-structure/ # Project scanning
-├── components/
-│   ├── scene/                # 3D scene (Three.js)
-│   │   ├── KnowledgeGraph.tsx
-│   │   ├── HooksLayerDetail.tsx
-│   │   ├── CenterRobot.tsx
-│   │   └── PlanetNode.tsx
-│   ├── ui-v3/                # V3 UI panels
-│   ├── workspace-ui/         # Workspace UI (NEW)
-│   │   ├── ModulePalette.tsx
-│   │   ├── SessionPanel.tsx
-│   │   └── CreateSessionDialog.tsx
-│   └── workspace-scene/      # Workspace 3D (NEW)
-│       └── WorkspaceScene.tsx
-├── stores/
-│   ├── useAuthStore.ts       # Authentication
-│   ├── useKnowledgeStore.ts  # Knowledge graph state
-│   └── useWorkspaceStore.ts  # Workspace state (NEW)
-├── services/
-│   └── claude/
-│       └── ClaudeConfigService.ts
-├── i18n/
-│   └── translations.ts       # i18n support
-└── utils/
-    ├── engineeringLayout.ts  # 3D layout algorithm
-    └── workspaceRaycast.ts   # Drag-drop raycast (NEW)
-```
-
-## 🛠️ Tech Stack
-
-| Category | Technology |
-|----------|-----------|
-| **Framework** | Next.js 14, React 18, TypeScript 5.3 |
-| **3D Rendering** | Three.js, React Three Fiber, @react-three/drei |
-| **Post-processing** | @react-three/postprocessing (Bloom, effects) |
-| **State Management** | Zustand 4.5 (with persistence) |
-| **Styling** | Tailwind CSS 3.4 |
-| **UI Components** | Radix UI, Lucide React icons |
-| **Internationalization** | Custom i18n system |
-| **Layout** | Custom orbital + engineering algorithms |
-
-## ⚙️ Configuration
-
-### Environment Variables
-
-Create `.env.local` from `.env.example`:
-
-```bash
-# Claude Config Path (auto-detected if not set)
-NEXT_PUBLIC_CLAUDE_CONFIG_PATH=/path/to/.claude
-
-# API Keys (for local development)
-CLAUDE_CONFIG_API_KEY=dev-only-key
-NEXT_PUBLIC_CLAUDE_CONFIG_API_KEY=dev-only-key
-```
-
-### Data Sources
-
-The tool visualizes:
-
-**Claude Code Config** (`~/.claude/`):
-- `settings.json` - Skills, MCPs, plugins, hooks
-- `rules/` - Markdown rule files
-- `agents/` - Agent configurations
-- `skills/` - Local skill definitions
-- `learning/`, `cache/`, `history.jsonl` - Memory items
-
-**Custom Projects**:
-- Any file structure can be scanned and visualized
-- API: `/api/project-structure`
-
-## 🎨 Customization
-
-### Themes
-Edit `tailwind.config.ts` to customize colors:
-
-```typescript
-colors: {
-  primary: '#00FFFF',    // Cyan
-  secondary: '#FF00FF',  // Magenta
-  accent: '#FFAA00',     // Orange
-}
-```
-
-### 3D Layout
-Modify layout algorithms in `src/utils/`:
-- `engineeringLayout.ts` - Orbital positioning
-- `layout.ts` - Main layout computation
-
-### Language Support
-Add new languages in `src/i18n/translations.ts`:
-
-```typescript
-export const translations = {
-  en: { /* English */ },
-  zh: { /* Chinese */ },
-  ja: { /* Japanese - add here */ },
-};
-```
-
-## 📦 Build & Deploy
+## Usage
 
 ### Development
+
 ```bash
 npm run dev
+# Open http://localhost:3000
 ```
 
 ### Production Build
+
 ```bash
-npm run build
+npm run build   # Generates static export to ./out/
 npm run start
 ```
 
-### Static Export
+### Docker
+
 ```bash
-npm run build
-# Output: out/
+docker build -t llm-viz .
+docker run -p 8080:8080 llm-viz
 ```
 
-Deploy `out/` to:
-- **Vercel**: Zero-config deployment
-- **Netlify**: Drag & drop
-- **GitHub Pages**: Static hosting
-- **Docker**: Use provided Dockerfile
+### Routes
 
-## 🐛 Known Issues
+| Route | Description |
+|-------|-------------|
+| `/` | Redirects to `/v3` |
+| `/login` | Authentication |
+| `/v3` | 3D Knowledge Graph (main view) |
+| `/workspace` | Session Manager |
 
-- **Electron Packaging**: 10 npm vulnerabilities in build dependencies (non-critical)
-- **Browser Automation**: Limited for testing (use manual QA)
-- **Memory Search**: OpenAI embeddings quota issue (non-blocking)
+### Demo Accounts
 
-See [CHANGELOG.md](CHANGELOG.md) for details.
+| Username | Password | Role |
+|----------|----------|------|
+| Bobo | bobo123 | Admin |
+| Admin | admin123 | Admin |
+| Guest | guest | Viewer |
 
-## 📚 Documentation
+## Configuration
 
-- **[CHANGELOG.md](CHANGELOG.md)** - Version history and changes
-- **[NEXT_STEPS.md](NEXT_STEPS.md)** - Roadmap and planned features
-- **[COMPLETION_REPORT.md](COMPLETION_REPORT.md)** - Project status
-- **[WORKSPACE_PLAN.md](WORKSPACE_PLAN.md)** - Workspace feature design
+Copy `.env.example` to `.env.local` and adjust as needed:
 
-## 🤝 Contributing
+```bash
+# API authentication key (development only)
+CLAUDE_CONFIG_API_KEY=dev-only-key
+NEXT_PUBLIC_CLAUDE_CONFIG_API_KEY=dev-only-key
 
-Contributions welcome! See our [contribution guidelines](CONTRIBUTING.md) (WIP).
+# Optional: override the default Claude config path
+# CLAUDE_CONFIG_PATH=/path/to/.claude
+# NEXT_PUBLIC_CLAUDE_CONFIG_PATH=/path/to/.claude
+```
 
-1. Fork the repository
-2. Create a feature branch
-3. Commit your changes
-4. Push to the branch
-5. Open a Pull Request
+By default the app reads your Claude workspace from `~/.claude` (settings, rules, agents, skills directories). Set `CLAUDE_CONFIG_PATH` to point at a different directory.
 
-## 📄 License
+## Dependencies
 
-MIT License - see [LICENSE](LICENSE) file for details.
+| Category | Libraries |
+|----------|-----------|
+| Framework | Next.js 14.2, React 18.2, TypeScript 5.3 |
+| 3D Rendering | Three.js 0.161, React Three Fiber 8.15, @react-three/drei 9.95 |
+| Post-processing | @react-three/postprocessing 2.16 |
+| Physics / Layout | d3-force 3.0, d3-force-3d 3.0.5 |
+| State | Zustand 4.5 |
+| Animation | Framer Motion 11.0 |
+| UI Primitives | Radix UI, Lucide React |
+| Styling | Tailwind CSS 3.4 |
+| Data Parsing | gray-matter 4.0, remark, unified 11.0 |
+| Server State | TanStack React Query 5.17 |
 
-## 🙏 Acknowledgments
+## Project Structure
 
-- **Claude Code** - AI-powered development tool
-- **Three.js** - 3D rendering engine
-- **React Three Fiber** - React + Three.js bridge
-- **Zustand** - Lightweight state management
+```
+src/
+├── app/                    # Next.js App Router (pages + API routes)
+│   ├── v3/                 # 3D Knowledge Graph page
+│   ├── workspace/          # Session Manager page
+│   ├── login/              # Auth page
+│   └── api/                # Backend: claude-config, skills, chat
+├── components/
+│   ├── scene/              # Three.js scene components (graph, nodes, camera)
+│   ├── workspace-scene/    # Workspace 3D canvas components
+│   ├── workspace-ui/       # Workspace panels and chat UI
+│   └── ui-v3/              # Knowledge graph UI panels
+├── stores/                 # Zustand stores (auth, knowledge, workspace, i18n, settings)
+├── services/               # Business logic (config loading, markdown parsing)
+├── adapters/               # Data source adapters (strategy pattern)
+├── utils/                  # Layout algorithms, shaders, color palette, raycast utils
+├── types/                  # TypeScript type definitions
+└── i18n/                   # Translation strings (EN / ZH)
+```
 
-## 📞 Support
+## License
 
-- **Issues**: [GitHub Issues](https://github.com/Arxchibobo/LLM-REconstruction3d-Visualization/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/Arxchibobo/LLM-REconstruction3d-Visualization/discussions)
-
----
-
-**Made with ❤️ by OpenClaw (小波比)**
+MIT — see [LICENSE](./LICENSE).
